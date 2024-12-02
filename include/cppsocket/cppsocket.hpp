@@ -28,27 +28,52 @@
   #include <netdb.h>
 #endif
 
-#include "ehl.hpp"
+#include "ehl/ehl.hpp"
+#include "strict_enum/strict_enum.hpp"
+#include "helper_macros.hpp"
 
 namespace cpps
 {
 
-enum class InitError
-{
-  SystemNotReady      = WSASYSNOTREADY,
+STRICT_ENUM(InitError)
+(
+PP_IF(CPPS_WIN_IMPL)
+(
+  SystemNotReady = WSASYSNOTREADY,
+  ProcessLimit   = WSAEPROCLIM,
   //VersionNotSupported = WSAVERNOTSUPPORTED, //Only happens with dll
   //OperationInProgress = WSAEINPROGRESS,     //Only happens with winsock 1.1
-  ProcessLimit        = WSAEPROCLIM,
   //InvalidArg          = WSAEFAULT           //Only happens if pointer to WSAData is invalid
-};
+)
+);
+
+STRICT_ENUM(GenericInitError)
+(
+  SystemNotReady PP_IF(CPPS_WIN_IMPL)(= WSASYSNOTREADY),
+  ProcessLimit   PP_IF(CPPS_WIN_IMPL)(= WSAEPROCLIM),
+);
 
 struct Net
 {
+  template<auto EHP = ehl::Policy::Exception>
+  static constexpr ehl::Result_t<Net, InitError, EHP> make() 
+    noexcept(EHP != ehl::Policy::Exception || CPPS_POSIX_IMPL)
+  {
+#if CPPS_WIN_IMPL
+    WSAData wsaData;
+    int r = WSAStartup(MAKEWORD(2, 2), &wsaData);
+
+    EHL_THROW_IF(r != 0, static_cast<InitError>(r));
+#endif
+
+    return Net{};
+  }
+
 #if CPPS_WIN_IMPL
   ~Net()
   {
     WSACleanup();
-    //WSANOTINITIALISED can`t be returned becasuse of class init invariant`
+    //WSANOTINITIALISED can`t be returned becasuse of class init invariant
     //WSAEINPROGRESS only returned in winsock 1.1
     //Just ignore WSAENETDOWN error because dectructing means we don`t need sockets working anymore
     //Otherwise if we need again sockets later, then init function will fail
@@ -56,25 +81,8 @@ struct Net
 #endif
 
 private:
-  template<auto EHP>
-  friend constexpr ehl::Result_t<Net, InitError, EHP> make_net() noexcept(EHP != ehl::Policy::Exception || CPPS_POSIX_IMPL);
-
   constexpr Net() noexcept = default;
 };
-
-template<auto EHP = ehl::Policy::Exception>
-constexpr ehl::Result_t<Net, InitError, EHP> make_net() noexcept(EHP != ehl::Policy::Exception || CPPS_POSIX_IMPL)
-{
-#if CPPS_WIN_IMPL
-  WSAData wsaData;
-  int r = WSAStartup(MAKEWORD(2, 2), &wsaData);
-
-  [[assume(r != WSAVERNOTSUPPORTED && r != WSAEINPROGRESS && r != WSAEFAULT)]];
-  EHL_THROW_IF(r != 0, static_cast<InitError>(r));
-#endif
-
-  return Net{};
-}
 
 } //namespace cpps
 
