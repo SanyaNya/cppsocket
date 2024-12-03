@@ -14,7 +14,7 @@ option(BUILD_EXAMPLES "Build examples" OFF)
 include(Fetch)
 
 fetch_project(ehl https://github.com/SanyaNya/ehl v1.1.1)
-fetch_project(strict_enum https://github.com/SanyaNya/strict_enum v1.3.0)
+fetch_project(strict_enum https://github.com/SanyaNya/strict_enum v1.3.2)
 
 add_library(cppsocket INTERFACE)
 target_link_libraries(cppsocket INTERFACE ehl strict_enum)
