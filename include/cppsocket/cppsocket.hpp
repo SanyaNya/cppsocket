@@ -35,35 +35,17 @@
 namespace cpps
 {
 
-STRICT_ENUM(InitError)
-(
-PP_IF(CPPS_WIN_IMPL)
-(
-  SystemNotReady = WSASYSNOTREADY,
-  ProcessLimit   = WSAEPROCLIM,
-  //VersionNotSupported = WSAVERNOTSUPPORTED, //Only happens with dll
-  //OperationInProgress = WSAEINPROGRESS,     //Only happens with winsock 1.1
-  //InvalidArg          = WSAEFAULT           //Only happens if pointer to WSAData is invalid
-)
-);
-
-STRICT_ENUM(GenericInitError)
-(
-  SystemNotReady PP_IF(CPPS_WIN_IMPL)(= WSASYSNOTREADY),
-  ProcessLimit   PP_IF(CPPS_WIN_IMPL)(= WSAEPROCLIM),
-);
-
 struct Net
 {
   template<auto EHP = ehl::Policy::Exception>
-  static constexpr ehl::Result_t<Net, InitError, EHP> make() 
+  static constexpr ehl::Result_t<Net, int, EHP> make()
     noexcept(EHP != ehl::Policy::Exception || CPPS_POSIX_IMPL)
   {
 #if CPPS_WIN_IMPL
     WSAData wsaData;
     int r = WSAStartup(MAKEWORD(2, 2), &wsaData);
 
-    EHL_THROW_IF(r != 0, static_cast<InitError>(r));
+    EHL_THROW_IF(r != 0, r);
 #endif
 
     return Net{};
