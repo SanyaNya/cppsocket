@@ -29,6 +29,7 @@
 #endif
 
 #include "ehl/ehl.hpp"
+#include "system_errc/system_errc.hpp"
 #include "strict_enum/strict_enum.hpp"
 #include "helper_macros.hpp"
 
@@ -38,14 +39,14 @@ namespace cpps
 struct Net
 {
   template<auto EHP = ehl::Policy::Exception>
-  static constexpr ehl::Result_t<Net, int, EHP> make()
+  static constexpr ehl::Result_t<Net, sys_errc::ErrorCode, EHP> make()
     noexcept(EHP != ehl::Policy::Exception || CPPS_POSIX_IMPL)
   {
 #if CPPS_WIN_IMPL
     WSAData wsaData;
     int r = WSAStartup(MAKEWORD(2, 2), &wsaData);
 
-    EHL_THROW_IF(r != 0, r);
+    EHL_THROW_IF(r != 0, sys_errc::ErrorCode(r));
 #endif
 
     return Net{};

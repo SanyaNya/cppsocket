@@ -14,10 +14,11 @@ option(BUILD_EXAMPLES "Build examples" OFF)
 include(Fetch)
 
 fetch_project(ehl https://github.com/SanyaNya/ehl v1.1.1)
+fetch_project(system_errc https://github.com/SanyaNya/system_errc v0.1.0)
 fetch_project(strict_enum https://github.com/SanyaNya/strict_enum v1.3.2)
 
 add_library(cppsocket INTERFACE)
-target_link_libraries(cppsocket INTERFACE ehl strict_enum)
+target_link_libraries(cppsocket INTERFACE ehl system_errc strict_enum)
 target_include_directories(cppsocket INTERFACE ${cppsocket_SOURCE_DIR}/include)
 
 if(BUILD_EXAMPLES)
