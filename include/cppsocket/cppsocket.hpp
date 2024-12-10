@@ -36,6 +36,36 @@
 namespace cpps
 {
 
+STRICT_ENUM(AddressFamily)
+(
+  IPv4 = AF_INET,
+  IPv6 = AF_INET6,
+);
+
+STRICT_ENUM(SocketType)
+(
+  Stream = SOCK_STREAM,
+  Datagram = SOCK_DGRAM,
+);
+
+STRICT_ENUM(SocketProtocol)
+(
+  TCP = IPPROTO_TCP,
+  UDP = IPPROTO_UDP,
+);
+
+struct Socket
+{
+  using Handle = std::invoke_result_t<decltype(::socket), int, int, int>;
+
+private:
+  friend struct Net;
+
+  Socket(Handle handle) noexcept : m_handle_(handle) {}
+
+  Handle m_handle_;
+};
+
 struct Net
 {
   template<auto EHP = ehl::Policy::Exception>
@@ -62,6 +92,27 @@ struct Net
     //Otherwise if we need again sockets later, then init function will fail
   }
 #endif
+
+  template<AddressFamily AF, SocketProtocol PROTO, auto EHP = ehl::Policy::Exception>
+  ehl::Result_t<Socket, sys_errc::ErrorCode, EHP> socket() const noexcept(EHP != ehl::Policy::Exception)
+  {
+    constexpr int af = static_cast<int>(AF);
+    constexpr int proto = static_cast<int>(PROTO);
+    constexpr int type = static_cast<int>([]()
+    {
+      switch(PROTO)
+      {
+        case SocketProtocol::TCP: return SocketType::Stream;
+        case SocketProtocol::UDP: return SocketType::Datagram;
+      }
+    }());
+
+    auto r = ::socket(af, type, proto);
+
+    EHL_THROW_IF(r == PP_IFE(CPPS_WIN_IMPL)(INVALID_SOCKET)(-1), sys_errc::last_error());
+
+    return Socket(r);
+  }
 
 private:
   constexpr Net() noexcept = default;
