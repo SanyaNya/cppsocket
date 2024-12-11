@@ -59,6 +59,9 @@ struct Socket
 {
   using Handle = std::invoke_result_t<decltype(::socket), int, int, int>;
 
+  static_assert(!(ST == SocketType::Stream && SP == SocketProtocol::UDP));
+  static_assert(!(ST == SocketType::Datagram && SP == SocketProtocol::TCP));
+
 private:
   friend struct Net;
 
