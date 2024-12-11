@@ -54,6 +54,7 @@ STRICT_ENUM(SocketProtocol)
   UDP = IPPROTO_UDP,
 );
 
+template<AddressFamily AF, SocketType ST, SocketProtocol SP>
 struct Socket
 {
   using Handle = std::invoke_result_t<decltype(::socket), int, int, int>;
@@ -94,26 +95,19 @@ struct Net
   }
 #endif
 
-  template<AddressFamily AF, SocketProtocol PROTO, auto EHP = ehl::Policy::Exception>
+  template<AddressFamily AF, SocketType ST, SocketProtocol SP, auto EHP = ehl::Policy::Exception>
   [[nodiscard]]
-  ehl::Result_t<Socket, sys_errc::ErrorCode, EHP> socket() const noexcept(EHP != ehl::Policy::Exception)
+  ehl::Result_t<Socket<AF, ST, SP>, sys_errc::ErrorCode, EHP> socket() const noexcept(EHP != ehl::Policy::Exception)
   {
     constexpr int af = static_cast<int>(AF);
-    constexpr int proto = static_cast<int>(PROTO);
-    constexpr int type = static_cast<int>([]()
-    {
-      switch(PROTO)
-      {
-        case SocketProtocol::TCP: return SocketType::Stream;
-        case SocketProtocol::UDP: return SocketType::Datagram;
-      }
-    }());
+    constexpr int st = static_cast<int>(ST);
+    constexpr int sp = static_cast<int>(SP);
 
-    auto r = ::socket(af, type, proto);
+    auto r = ::socket(af, st, sp);
 
     EHL_THROW_IF(r == PP_IFE(CPPS_WIN_IMPL)(INVALID_SOCKET)(-1), sys_errc::last_error());
 
-    return Socket(r);
+    return Socket<AF, ST, SP>(r);
   }
 
 private:
