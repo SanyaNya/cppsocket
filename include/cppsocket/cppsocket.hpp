@@ -1,6 +1,6 @@
 #pragma once
 
-#include "helper_macros.hpp"
+#include "details/helper_macros.hpp"
 
 //Include platform specific headers
 #if CPPS_WIN_IMPL
