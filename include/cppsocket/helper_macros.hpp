@@ -1,5 +1,14 @@
 #pragma once
 
+//Define platform
+#if defined(WIN32) || defined(__MINGW32__)
+  #define CPPS_WIN_IMPL 1
+  #define CPPS_POSIX_IMPL 0
+#else
+  #define CPPS_WIN_IMPL 0
+  #define CPPS_POSIX_IMPL 1
+#endif
+
 #define DETAIL_PP_IF0(...)
 #define DETAIL_PP_IF1(...) __VA_ARGS__
 #define DETAIL_PP_IF(COND) DETAIL_PP_IF ## COND

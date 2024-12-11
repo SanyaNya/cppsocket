@@ -1,13 +1,6 @@
 #pragma once
 
-//Define platform
-#if defined(WIN32) || defined(__MINGW32__)
-  #define CPPS_WIN_IMPL 1
-  #define CPPS_POSIX_IMPL 0
-#else
-  #define CPPS_WIN_IMPL 0
-  #define CPPS_POSIX_IMPL 1
-#endif
+#include "helper_macros.hpp"
 
 //Include platform specific headers
 #if CPPS_WIN_IMPL
@@ -31,7 +24,6 @@
 #include "ehl/ehl.hpp"
 #include "system_errc/system_errc.hpp"
 #include "strict_enum/strict_enum.hpp"
-#include "helper_macros.hpp"
 
 namespace cpps
 {
