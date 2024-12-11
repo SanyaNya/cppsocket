@@ -69,6 +69,7 @@ private:
 struct Net
 {
   template<auto EHP = ehl::Policy::Exception>
+  [[nodiscard]]
   static constexpr ehl::Result_t<Net, sys_errc::ErrorCode, EHP> make()
     noexcept(EHP != ehl::Policy::Exception || CPPS_POSIX_IMPL)
   {
@@ -94,6 +95,7 @@ struct Net
 #endif
 
   template<AddressFamily AF, SocketProtocol PROTO, auto EHP = ehl::Policy::Exception>
+  [[nodiscard]]
   ehl::Result_t<Socket, sys_errc::ErrorCode, EHP> socket() const noexcept(EHP != ehl::Policy::Exception)
   {
     constexpr int af = static_cast<int>(AF);
