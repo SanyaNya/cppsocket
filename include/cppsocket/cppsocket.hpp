@@ -74,7 +74,7 @@ struct Net
 {
   template<auto EHP = ehl::Policy::Exception>
   [[nodiscard]]
-  static constexpr ehl::Result_t<Net, sys_errc::ErrorCode, EHP> make()
+  static PP_IF(CPPS_POSIX_IMPL)(constexpr) ehl::Result_t<Net, sys_errc::ErrorCode, EHP> make()
     noexcept(EHP != ehl::Policy::Exception || CPPS_POSIX_IMPL)
   {
 #if CPPS_WIN_IMPL
