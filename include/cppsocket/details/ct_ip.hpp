@@ -37,6 +37,14 @@ consteval T ct_ntoh(T netval)
 namespace details_ct_inet_pton
 {
 
+consteval size_t string_length(const char* s)
+{
+  size_t len = 0;
+  while(s[len] != '\0') ++len;
+
+  return len;
+}
+
 consteval bool isdigit(char c)
 {
     return c >= '0' && c <= '9';
@@ -60,8 +68,7 @@ consteval char toupper(char c)
     return c ^ 0x20;
 }
 
-template <size_t N>
-consteval ssize_t rfind_chr(const char (&str)[N], size_t from, char c)
+consteval ssize_t rfind_chr(const char* str, size_t from, char c)
 {
     for ( ssize_t i = from; i >= 0; i-- )
         if ( str[i] == c )
@@ -70,10 +77,9 @@ consteval ssize_t rfind_chr(const char (&str)[N], size_t from, char c)
     return -1;
 }
 
-template <size_t N>
-consteval ssize_t find_chr(const char (&str)[N], size_t from, char c)
+consteval ssize_t find_chr(const char* str, size_t from, char c)
 {
-    for ( size_t i = from; i < N; i++ )
+    for ( size_t i = from; str[i] != '\0'; i++ )
         if ( str[i] == c )
             return i;
 
@@ -115,10 +121,12 @@ consteval int convert_digit(char c)
     }
 }
 
-template <int base, char sep, unsigned max_value, size_t max_length = 0, size_t N>
-consteval long long parse_address_component(const char (&str)[N], size_t idx)
+template <int base, char sep, unsigned max_value, size_t max_length = 0>
+consteval long long parse_address_component(const char* str, size_t idx)
 {
     long long res = 0;
+
+    const size_t N = string_length(str);
 
     if ( N - 1 - idx <= 0 || str[idx] == sep )
         return -1;
@@ -141,26 +149,26 @@ consteval long long parse_address_component(const char (&str)[N], size_t idx)
     return res;
 }
 
-template <int base, unsigned max_value, size_t N>
-consteval int parse_inet_component_base(const char (&str)[N], size_t idx)
+template <int base, unsigned max_value>
+consteval int parse_inet_component_base(const char* str, size_t idx)
 {
     return parse_address_component<base, '.', max_value>(str, idx);
 }
 
-template <unsigned max_value, size_t N>
-consteval int parse_inet_component_oct(const char (&str)[N], size_t idx)
+template <unsigned max_value>
+consteval int parse_inet_component_oct(const char* str, size_t idx)
 {
     return parse_inet_component_base<8, max_value>(str, idx);
 }
 
-template <unsigned max_value, size_t N>
-consteval int parse_inet_component_dec(const char (&str)[N], size_t idx)
+template <unsigned max_value>
+consteval int parse_inet_component_dec(const char* str, size_t idx)
 {
     return parse_inet_component_base<10, max_value>(str, idx);
 }
 
-template <unsigned max_value, size_t N>
-consteval int parse_inet_component_hex(const char (&str)[N], size_t idx)
+template <unsigned max_value>
+consteval int parse_inet_component_hex(const char* str, size_t idx)
 {
     return parse_inet_component_base<16, max_value>(str, idx);
 }
@@ -168,9 +176,11 @@ consteval int parse_inet_component_hex(const char (&str)[N], size_t idx)
 //
 // Parse a component of an IPv4 address.
 //
-template <unsigned max_value = 255, size_t N>
-consteval int parse_inet_component(const char (&str)[N], size_t idx)
+template <unsigned max_value = 255>
+consteval int parse_inet_component(const char* str, size_t idx)
 {
+    const size_t N = string_length(str);
+
     if ( (N - idx) > 2 && str[idx] == '0' && (toupper(str[idx+1]) == 'X') )
         return parse_inet_component_hex<max_value>(str, idx + 2);
     else if ( (N - idx) > 2 && str[idx] == '0' && isdigit(str[idx+1]) && str[idx+1] != '0' )
@@ -183,9 +193,10 @@ consteval int parse_inet_component(const char (&str)[N], size_t idx)
 // Parse a component of an IPv4 address in its canonical form.
 // Leading zeros are not allowed, and component must be expressed in decimal form.
 //
-template <size_t N>
-consteval int parse_inet_component_canonical(const char (&str)[N], size_t idx)
+consteval int parse_inet_component_canonical(const char* str, size_t idx)
 {
+    const size_t N = string_length(str);
+
     if ( (N - idx) > 2 && str[idx] == '0' && isdigit(str[idx + 1]) )
         return -1;
 
@@ -195,15 +206,15 @@ consteval int parse_inet_component_canonical(const char (&str)[N], size_t idx)
 //
 // Parse a component of an IPv6 address.
 //
-template <size_t N>
-consteval int parse_inet6_hexlet(const char (&str)[N], size_t idx)
+consteval int parse_inet6_hexlet(const char* str, size_t idx)
 {
     return parse_address_component<16, ':', 0xFFFF, 4>(str, idx);
 }
 
-template <size_t N>
-consteval int inet_addr_canonical_at(const char (&str)[N], ssize_t idx, in_addr_t& s_addr)
+consteval int inet_addr_canonical_at(const char* str, ssize_t idx, in_addr_t& s_addr)
 {
+    const size_t N = string_length(str);
+
     // Split and parse each component according to POSIX rules.
     ssize_t sep3 = rfind_chr(str, N-1, '.'),
             sep2 = rfind_chr(str, sep3-1, '.'),
@@ -224,14 +235,12 @@ consteval int inet_addr_canonical_at(const char (&str)[N], ssize_t idx, in_addr_
     return 0;
 }
 
-template <size_t N>
-consteval int inet_addr_canonical(const char (&str)[N], in_addr_t& s_addr)
+consteval int inet_addr_canonical(const char* str, in_addr_t& s_addr)
 {
     return inet_addr_canonical_at(str, 0, s_addr);
 }
 
-template <size_t N>
-consteval int inet_aton_canonical(const char (&str)[N], struct in_addr& in)
+consteval int inet_aton_canonical(const char* str, struct in_addr& in)
 {
     return inet_addr_canonical(str, in.s_addr);
 }
@@ -269,14 +278,15 @@ consteval void rshift_array(std::array<T, N>& a, size_t from, size_t shift)
 //  2. Contiguous zero components can be compacted as "::", allowed to appear only once in the address.
 //  3. First 96 bits in above representation and last 32 bits represented as an IPv4 address.
 //
-template <size_t N>
-consteval int inet6_aton(const char (&str)[N], struct in6_addr& in6)
+consteval int inet6_aton(const char* str, struct in6_addr& in6)
 {
+    const size_t N = string_length(str);
+
     std::array<uint16_t, 8> comps = { 0 };
     int shortener_pos = -1;
     size_t idx = 0;
     in_addr_t v4_addr = -1;
-    auto remaining_chars = [](size_t pos) constexpr { return N - 1 - pos; };
+    auto remaining_chars = [N](size_t pos) constexpr { return N - 1 - pos; };
 
     // The address must contain at least two chars, cannot start/end with a separator alone.
     if ( N < 3 || (str[0] == ':' && str[1] != ':') || (str[N-1] == ':' && str[N-2] != ':') )
@@ -359,8 +369,8 @@ consteval int inet6_aton(const char (&str)[N], struct in6_addr& in6)
 
 inline void constexpr_fail(const char*) {}
 
-template <int AddressF, size_t N>
-consteval auto ct_inet_pton(const char (&str)[N])
+template <int AddressF>
+consteval auto ct_inet_pton(const char* str)
 {
     static_assert(AddressF == AF_INET || AddressF == AF_INET6, "Unsupported address family.");
 
