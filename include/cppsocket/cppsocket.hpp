@@ -1,5 +1,6 @@
 #pragma once
 
+#include <type_traits>
 #include "details/helper_macros.hpp"
 
 //Include platform specific headers
@@ -24,6 +25,7 @@
 #include "ehl/ehl.hpp"
 #include "system_errc/system_errc.hpp"
 #include "strict_enum/strict_enum.hpp"
+#include "details/ct_ip.hpp"
 
 namespace cpps
 {
@@ -45,6 +47,51 @@ STRICT_ENUM(SocketProtocol)
   TCP = IPPROTO_TCP,
   UDP = IPPROTO_UDP,
 );
+
+STRICT_ENUM(AddressError)
+(
+  Invalid
+);
+
+template<AddressFamily AF>
+class Address
+{
+  using sockaddr_type = std::conditional_t<AF == AddressFamily::IPv4, sockaddr_in, sockaddr_in6>;
+
+  sockaddr_type m_saddr_;
+
+  constexpr Address(sockaddr_type saddr) noexcept : m_saddr_(saddr) {}
+
+public:
+  template<auto EHP = ehl::Policy::Exception>
+  static constexpr ehl::Result_t<Address, AddressError, EHP> make(const char* addr, in_port_t port) noexcept(EHP != ehl::Policy::Exception)
+  {
+    sockaddr_type saddr{};
+    int r = 0;
+
+    if constexpr(AF == AddressFamily::IPv4)
+    {
+      saddr.sin_family = AF_INET;
+      saddr.sin_port = port;
+
+      if consteval { saddr.sin_addr = details::ct_inet_pton<AF_INET>(addr); r = 1; }
+      else { r = inet_pton(AF_INET, addr, &saddr.sin_addr); }
+    }
+
+    if constexpr(AF == AddressFamily::IPv6)
+    {
+      saddr.sin6_family = AF_INET6;;
+      saddr.sin6_port = port;
+
+      if consteval { saddr.sin6_addr = details::ct_inet_pton<AF_INET6>(addr); r = 1; }
+      else { r = inet_pton(AF_INET6, addr, &saddr.sin6_addr); }
+    }
+
+    EHL_THROW_IF(r == 0, AddressError(AddressError::Invalid));
+
+    return Address(saddr);
+  }
+};
 
 template<AddressFamily AF, SocketType ST, SocketProtocol SP>
 struct Socket
