@@ -262,7 +262,7 @@ consteval void rshift_array(std::array<T, N>& a, size_t from, size_t shift)
         return;
 
     for ( ssize_t pos = N - 1; pos >= static_cast<ssize_t>(from + shift); pos-- ) {
-        if ( pos - shift >= 0 ) {
+        if ( pos - static_cast<ssize_t>(shift) >= 0 ) {
             a[pos] = a[pos - shift];
             a[pos - shift] = 0;
         }
