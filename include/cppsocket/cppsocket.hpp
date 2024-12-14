@@ -26,6 +26,7 @@
 #include "system_errc/system_errc.hpp"
 #include "strict_enum/strict_enum.hpp"
 #include "details/ct_ip.hpp"
+#include "details/safe_rcast.hpp"
 
 namespace cpps
 {
@@ -100,6 +101,15 @@ struct Socket
 
   static_assert(!(ST == SocketType::Stream && SP == SocketProtocol::UDP));
   static_assert(!(ST == SocketType::Datagram && SP == SocketProtocol::TCP));
+
+  template<auto EHP = ehl::Policy::Exception>
+  [[nodiscard]]
+  ehl::Result_t<void, sys_errc::ErrorCode, EHP> bind(const Address<AF>& addr) noexcept(EHP != ehl::Policy::Exception)
+  {
+    int r = ::bind(m_handle_, &details::safe_rcast<sockaddr>(addr), sizeof(addr));
+
+    EHL_THROW_IF(r != 0, sys_errc::last_error());
+  }
 
 private:
   friend struct Net;
