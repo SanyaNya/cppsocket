@@ -65,6 +65,7 @@ class Address
 
 public:
   template<auto EHP = ehl::Policy::Exception>
+  [[nodiscard]]
   static constexpr ehl::Result_t<Address, AddressError, EHP> make(const char* addr, in_port_t port) noexcept(EHP != ehl::Policy::Exception)
   {
     sockaddr_type saddr{};
