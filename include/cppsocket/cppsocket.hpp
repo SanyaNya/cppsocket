@@ -82,7 +82,7 @@ public:
 
     if constexpr(AF == AddressFamily::IPv6)
     {
-      saddr.sin6_family = AF_INET6;;
+      saddr.sin6_family = AF_INET6;
       saddr.sin6_port = port;
 
       if consteval { saddr.sin6_addr = details::ct_inet_pton<AF_INET6>(addr); r = 1; }
