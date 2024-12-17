@@ -112,6 +112,16 @@ struct Socket
     EHL_THROW_IF(r != 0, sys_errc::last_error());
   }
 
+  template<auto EHP = ehl::Policy::Exception>
+  [[nodiscard]]
+  ehl::Result_t<void, sys_errc::ErrorCode, EHP> listen(unsigned int max_connections) noexcept(EHP != ehl::Policy::Exception) 
+    requires (SP == SocketProtocol::TCP)
+  {
+    int r = ::listen(m_handle_, max_connections);
+
+    EHL_THROW_IF(r != 0, sys_errc::last_error());
+  }
+
 private:
   friend struct Net;
 
