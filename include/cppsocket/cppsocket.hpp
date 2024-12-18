@@ -54,6 +54,13 @@ STRICT_ENUM(AddressError)
   Invalid
 );
 
+namespace details
+{
+
+using SocketHandle = std::invoke_result_t<decltype(::socket), int, int, int>;
+
+} //namespace details
+
 template<AddressFamily AF>
 class Address
 {
@@ -61,6 +68,7 @@ class Address
 
   sockaddr_type m_saddr_;
 
+  constexpr Address() noexcept = default;
   constexpr Address(sockaddr_type saddr) noexcept : m_saddr_(saddr) {}
 
 public:
@@ -95,11 +103,22 @@ public:
   }
 };
 
+template<AddressFamily AF, SocketProtocol SP>
+struct Connection
+{
+private:
+  template<AddressFamily, SocketType, SocketProtocol>
+  friend struct Socket;
+
+  Connection(details::SocketHandle handle, Address<AF> addr) noexcept : m_handle_(handle), m_addr_(addr) {}
+
+  details::SocketHandle m_handle_;
+  Address<AF> m_addr_;
+};
+
 template<AddressFamily AF, SocketType ST, SocketProtocol SP>
 struct Socket
 {
-  using Handle = std::invoke_result_t<decltype(::socket), int, int, int>;
-
   static_assert(!(ST == SocketType::Stream && SP == SocketProtocol::UDP));
   static_assert(!(ST == SocketType::Datagram && SP == SocketProtocol::TCP));
 
@@ -122,12 +141,25 @@ struct Socket
     EHL_THROW_IF(r != 0, sys_errc::last_error());
   }
 
+  template<auto EHP = ehl::Policy::Exception>
+  [[nodiscard]]
+  ehl::Result_t<void, sys_errc::ErrorCode, EHP> accept() noexcept(EHP != ehl::Policy::Exception)
+    requires (SP == SocketProtocol::TCP)
+  {
+    Address<AF> addr;
+    details::SocketHandle r = ::accept(m_handle_, &details::safe_rcast<sockaddr>(addr), sizeof(addr));
+
+    EHL_THROW_IF(r == PP_IFE(CPPS_WIN_IMPL)(INVALID_SOCKET)(-1), sys_errc::last_error());
+
+    return Connection<AF, SP>(r, addr);
+  }
+
 private:
   friend struct Net;
 
-  Socket(Handle handle) noexcept : m_handle_(handle) {}
+  Socket(details::SocketHandle handle) noexcept : m_handle_(handle) {}
 
-  Handle m_handle_;
+  details::SocketHandle m_handle_;
 };
 
 struct Net
