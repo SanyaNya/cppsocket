@@ -64,6 +64,9 @@ using SocketHandle = std::invoke_result_t<decltype(::socket), int, int, int>;
 template<AddressFamily AF>
 class Address
 {
+  template<AddressFamily, SocketType, SocketProtocol>
+  friend struct Socket;
+
   using sockaddr_type = std::conditional_t<AF == AddressFamily::IPv4, sockaddr_in, sockaddr_in6>;
 
   sockaddr_type m_saddr_;
@@ -147,7 +150,8 @@ struct Socket
     requires (SP == SocketProtocol::TCP)
   {
     Address<AF> addr;
-    details::SocketHandle r = ::accept(m_handle_, &details::safe_rcast<sockaddr>(addr), sizeof(addr));
+    socklen_t addrlen = sizeof(addr);
+    details::SocketHandle r = ::accept(m_handle_, &details::safe_rcast<sockaddr>(addr), &addrlen);
 
     EHL_THROW_IF(r == PP_IFE(CPPS_WIN_IMPL)(INVALID_SOCKET)(-1), sys_errc::last_error());
 
