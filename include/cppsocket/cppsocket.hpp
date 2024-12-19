@@ -20,6 +20,7 @@
   #include <sys/socket.h>
   #include <arpa/inet.h>
   #include <netdb.h>
+  #include <unistd.h>
 #endif
 
 #include "ehl/ehl.hpp"
@@ -58,6 +59,8 @@ namespace details
 
 using SocketHandle = std::invoke_result_t<decltype(::socket), int, int, int>;
 using socklen_type = PP_IFE(CPPS_WIN_IMPL)(int)(socklen_t);
+
+constexpr auto invalid_socket = PP_IFE(CPPS_WIN_IMPL)(INVALID_SOCKET)(-1);
 
 } //namespace details
 
@@ -159,7 +162,7 @@ struct Socket
     //implementation know that pointer is from cast and deals with it
     details::SocketHandle r = ::accept(m_handle_, reinterpret_cast<sockaddr*>(&addr), &addrlen);
 
-    EHL_THROW_IF(r == PP_IFE(CPPS_WIN_IMPL)(INVALID_SOCKET)(-1), sys_errc::last_error());
+    EHL_THROW_IF(r == details::invalid_socket, sys_errc::last_error());
 
     return Connection<AF>(r, addr);
   }
@@ -176,6 +179,33 @@ struct Socket
     EHL_THROW_IF(r != 0, sys_errc::last_error());
 
     return Connection<AF>(m_handle_, addr);
+  }
+
+  Socket(Socket&& s) : m_handle_(s.m_handle_)
+  {
+    s.m_handle_ = details::invalid_socket;
+  }
+
+  Socket(const Socket&) = delete;
+
+  Socket& operator=(Socket&& s)
+  {
+    m_handle_ = std::exchange(s.m_handle_, details::invalid_socket);
+    return *this;
+  }
+
+  Socket& operator=(const Socket&) = delete;
+
+  ~Socket()
+  {
+    if(m_handle_ != details::invalid_socket)
+    {
+    #if CPPS_WIN_IMPL
+      ::closesocket(m_handle_);
+    #elif CPPS_POSIX_IMPL
+      ::close(m_handle_);
+    #endif
+    }
   }
 
 private:
@@ -224,7 +254,7 @@ struct Net
 
     auto r = ::socket(af, st, sp);
 
-    EHL_THROW_IF(r == PP_IFE(CPPS_WIN_IMPL)(INVALID_SOCKET)(-1), sys_errc::last_error());
+    EHL_THROW_IF(r == details::invalid_socket, sys_errc::last_error());
 
     return Socket<AF, ST, SP>(r);
   }
