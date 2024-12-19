@@ -26,7 +26,6 @@
 #include "system_errc/system_errc.hpp"
 #include "strict_enum/strict_enum.hpp"
 #include "details/ct_ip.hpp"
-#include "details/safe_rcast.hpp"
 
 namespace cpps
 {
@@ -129,7 +128,10 @@ struct Socket
   [[nodiscard]]
   ehl::Result_t<void, sys_errc::ErrorCode, EHP> bind(const Address<AF>& addr) noexcept(EHP != ehl::Policy::Exception)
   {
-    int r = ::bind(m_handle_, &details::safe_rcast<sockaddr>(addr), sizeof(addr));
+    //getting pointer by reinterpret_cast is not UB,
+    //accessing through this pointer is UB, but access is done by implementation of bind,
+    //implementation know that pointer is from cast and deals with it
+    int r = ::bind(m_handle_, reinterpret_cast<const sockaddr*>(&addr), sizeof(addr));
 
     EHL_THROW_IF(r != 0, sys_errc::last_error());
   }
@@ -151,7 +153,10 @@ struct Socket
   {
     Address<AF> addr;
     socklen_t addrlen = sizeof(addr);
-    details::SocketHandle r = ::accept(m_handle_, &details::safe_rcast<sockaddr>(addr), &addrlen);
+    //getting pointer by reinterpret_cast is not UB,
+    //accessing through this pointer is UB, but access is done by implementation of accept,
+    //implementation know that pointer is from cast and deals with it
+    details::SocketHandle r = ::accept(m_handle_, reinterpret_cast<sockaddr*>(&addr), &addrlen);
 
     EHL_THROW_IF(r == PP_IFE(CPPS_WIN_IMPL)(INVALID_SOCKET)(-1), sys_errc::last_error());
 
