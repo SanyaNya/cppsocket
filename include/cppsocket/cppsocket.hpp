@@ -57,6 +57,7 @@ namespace details
 {
 
 using SocketHandle = std::invoke_result_t<decltype(::socket), int, int, int>;
+using socklen_type = PP_IFE(CPPS_WIN_IMPL)(int)(socklen_t);
 
 } //namespace details
 
@@ -152,7 +153,7 @@ struct Socket
     requires (SP == SocketProtocol::TCP)
   {
     Address<AF> addr;
-    socklen_t addrlen = sizeof(addr);
+    details::socklen_type addrlen = sizeof(addr);
     //getting pointer by reinterpret_cast is not UB,
     //accessing through this pointer is UB, but access is done by implementation of accept,
     //implementation know that pointer is from cast and deals with it
