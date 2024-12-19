@@ -107,13 +107,13 @@ public:
 };
 
 template<AddressFamily AF>
-struct TcpConnection
+struct Connection
 {
 private:
   template<AddressFamily, SocketType, SocketProtocol>
   friend struct Socket;
 
-  TcpConnection(details::SocketHandle handle, Address<AF> addr) noexcept : m_handle_(handle), m_addr_(addr) {}
+  Connection(details::SocketHandle handle, Address<AF> addr) noexcept : m_handle_(handle), m_addr_(addr) {}
 
   details::SocketHandle m_handle_;
   Address<AF> m_addr_;
@@ -149,7 +149,7 @@ struct Socket
 
   template<auto EHP = ehl::Policy::Exception>
   [[nodiscard]]
-  ehl::Result_t<TcpConnection<AF>, sys_errc::ErrorCode, EHP> accept() noexcept(EHP != ehl::Policy::Exception)
+  ehl::Result_t<Connection<AF>, sys_errc::ErrorCode, EHP> accept() noexcept(EHP != ehl::Policy::Exception)
     requires (SP == SocketProtocol::TCP)
   {
     Address<AF> addr;
@@ -161,7 +161,21 @@ struct Socket
 
     EHL_THROW_IF(r == PP_IFE(CPPS_WIN_IMPL)(INVALID_SOCKET)(-1), sys_errc::last_error());
 
-    return TcpConnection<AF>(r, addr);
+    return Connection<AF>(r, addr);
+  }
+
+  template<auto EHP = ehl::Policy::Exception>
+  [[nodiscard]]
+  ehl::Result_t<Connection<AF>, sys_errc::ErrorCode, EHP> connect(const Address<AF>& addr) noexcept(EHP != ehl::Policy::Exception)
+  {
+    //getting pointer by reinterpret_cast is not UB,
+    //accessing through this pointer is UB, but access is done by implementation of connect,
+    //implementation know that pointer is from cast and deals with it
+    int r = ::connect(m_handle_, reinterpret_cast<const sockaddr*>(&addr), sizeof(addr));
+
+    EHL_THROW_IF(r != 0, sys_errc::last_error());
+
+    return Connection<AF>(m_handle_, addr);
   }
 
 private:
