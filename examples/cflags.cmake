@@ -27,10 +27,12 @@ else()
     $<$<CONFIG:Debug>:-fsanitize=undefined>
     $<$<CONFIG:Release>:-w>
     $<$<CONFIG:Release>:-O3>
+    $<$<CONFIG:Release>:-fno-stack-protector>
     $<$<CONFIG:Release>:-flto>)
 
 add_link_options(
     $<$<CONFIG:Debug>:-fsanitize=address>
     $<$<CONFIG:Debug>:-fsanitize=undefined>
+    $<$<CONFIG:Release>:-s>
     $<$<CONFIG:Release>:-flto>)
 endif()
