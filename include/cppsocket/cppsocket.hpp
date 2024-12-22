@@ -152,7 +152,7 @@ struct Socket
 
   template<auto EHP = ehl::Policy::Exception>
   [[nodiscard]] ehl::Result_t<Connection<SI.address_family>, sys_errc::ErrorCode, EHP> accept()
-    noexcept(EHP != ehl::Policy::Exception) requires (SI.protocol == SocketProtocol::TCP && INV.binded && INV.listening)
+    noexcept(EHP != ehl::Policy::Exception) requires (SI.type == SocketType::Stream && INV.binded && INV.listening)
   {
     Address<SI.address_family> addr;
     details::socklen_type addrlen = sizeof(addr);
@@ -281,7 +281,7 @@ struct Net
     return Socket<SI, details::inv_bind>{sfd};
   }
 
-  template<SocketInfo SI, auto EHP = ehl::Policy::Exception> requires (SI.protocol == SocketProtocol::TCP)
+  template<SocketInfo SI, auto EHP = ehl::Policy::Exception> requires (SI.type == SocketType::Stream)
   [[nodiscard]] ehl::Result_t<Socket<SI, details::inv_bind_listen>, sys_errc::ErrorCode, EHP>
   socket(const Address<SI.address_family>& addr, unsigned max_connections) const noexcept(EHP != ehl::Policy::Exception)
   {
