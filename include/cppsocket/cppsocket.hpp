@@ -54,6 +54,18 @@ STRICT_ENUM(AddressError)
   Invalid
 );
 
+struct SocketInfo
+{
+  AddressFamily  address_family;
+  SocketType     type;
+  SocketProtocol protocol;
+};
+
+constexpr SocketInfo SI_IPv4_TCP = { AddressFamily::IPv4, SocketType::Stream, SocketProtocol::TCP };
+constexpr SocketInfo SI_IPv6_TCP = { AddressFamily::IPv6, SocketType::Stream, SocketProtocol::TCP };
+constexpr SocketInfo SI_IPv4_UDP = { AddressFamily::IPv4, SocketType::Datagram, SocketProtocol::UDP };
+constexpr SocketInfo SI_IPv6_UDP = { AddressFamily::IPv6, SocketType::Datagram, SocketProtocol::UDP };
+
 namespace details
 {
 
@@ -62,12 +74,22 @@ using socklen_type = PP_IFE(CPPS_WIN_IMPL)(int)(socklen_t);
 
 constexpr auto invalid_socket = PP_IFE(CPPS_WIN_IMPL)(INVALID_SOCKET)(-1);
 
+struct InvInfo
+{
+  bool binded;
+  bool listening;
+};
+
+constexpr InvInfo inv_empty{};
+constexpr InvInfo inv_bind = { .binded = true, .listening = false };
+constexpr InvInfo inv_bind_listen = { .binded = true, .listening = true };
+
 } //namespace details
 
 template<AddressFamily AF>
 class Address
 {
-  template<AddressFamily, SocketType, SocketProtocol>
+  template<SocketInfo, details::InvInfo>
   friend struct Socket;
 
   using sockaddr_type = std::conditional_t<AF == AddressFamily::IPv4, sockaddr_in, sockaddr_in6>;
@@ -79,8 +101,8 @@ class Address
 
 public:
   template<auto EHP = ehl::Policy::Exception>
-  [[nodiscard]]
-  static constexpr ehl::Result_t<Address, AddressError, EHP> make(const char* addr, in_port_t port) noexcept(EHP != ehl::Policy::Exception)
+  [[nodiscard]] static constexpr ehl::Result_t<Address, AddressError, EHP> make(const char* addr, in_port_t port)
+    noexcept(EHP != ehl::Policy::Exception)
   {
     sockaddr_type saddr{};
     int r = 0;
@@ -113,7 +135,7 @@ template<AddressFamily AF>
 struct Connection
 {
 private:
-  template<AddressFamily, SocketType, SocketProtocol>
+  template<SocketInfo, details::InvInfo>
   friend struct Socket;
 
   Connection(details::SocketHandle handle, Address<AF> addr) noexcept : m_handle_(handle), m_addr_(addr) {}
@@ -122,40 +144,17 @@ private:
   Address<AF> m_addr_;
 };
 
-template<AddressFamily AF, SocketType ST, SocketProtocol SP>
+template<SocketInfo SI, details::InvInfo INV>
 struct Socket
 {
-  static_assert(!(ST == SocketType::Stream && SP == SocketProtocol::UDP));
-  static_assert(!(ST == SocketType::Datagram && SP == SocketProtocol::TCP));
+  static_assert(!(SI.type == SocketType::Stream && SI.protocol == SocketProtocol::UDP));
+  static_assert(!(SI.type == SocketType::Datagram && SI.protocol == SocketProtocol::TCP));
 
   template<auto EHP = ehl::Policy::Exception>
-  [[nodiscard]]
-  ehl::Result_t<void, sys_errc::ErrorCode, EHP> bind(const Address<AF>& addr) noexcept(EHP != ehl::Policy::Exception)
+  [[nodiscard]] ehl::Result_t<Connection<SI.address_family>, sys_errc::ErrorCode, EHP> accept()
+    noexcept(EHP != ehl::Policy::Exception) requires (SI.protocol == SocketProtocol::TCP && INV.binded && INV.listening)
   {
-    //getting pointer by reinterpret_cast is not UB,
-    //accessing through this pointer is UB, but access is done by implementation of bind,
-    //implementation know that pointer is from cast and deals with it
-    int r = ::bind(m_handle_, reinterpret_cast<const sockaddr*>(&addr), sizeof(addr));
-
-    EHL_THROW_IF(r != 0, sys_errc::last_error());
-  }
-
-  template<auto EHP = ehl::Policy::Exception>
-  [[nodiscard]]
-  ehl::Result_t<void, sys_errc::ErrorCode, EHP> listen(unsigned int max_connections) noexcept(EHP != ehl::Policy::Exception) 
-    requires (SP == SocketProtocol::TCP)
-  {
-    int r = ::listen(m_handle_, max_connections);
-
-    EHL_THROW_IF(r != 0, sys_errc::last_error());
-  }
-
-  template<auto EHP = ehl::Policy::Exception>
-  [[nodiscard]]
-  ehl::Result_t<Connection<AF>, sys_errc::ErrorCode, EHP> accept() noexcept(EHP != ehl::Policy::Exception)
-    requires (SP == SocketProtocol::TCP)
-  {
-    Address<AF> addr;
+    Address<SI.address_family> addr;
     details::socklen_type addrlen = sizeof(addr);
     //getting pointer by reinterpret_cast is not UB,
     //accessing through this pointer is UB, but access is done by implementation of accept,
@@ -164,12 +163,13 @@ struct Socket
 
     EHL_THROW_IF(r == details::invalid_socket, sys_errc::last_error());
 
-    return Connection<AF>(r, addr);
+    return Connection<SI.address_family>(r, addr);
   }
 
   template<auto EHP = ehl::Policy::Exception>
   [[nodiscard]]
-  ehl::Result_t<Connection<AF>, sys_errc::ErrorCode, EHP> connect(const Address<AF>& addr) noexcept(EHP != ehl::Policy::Exception)
+  ehl::Result_t<Connection<SI.address_family>, sys_errc::ErrorCode, EHP> connect(const Address<SI.address_family>& addr)
+    noexcept(EHP != ehl::Policy::Exception)
   {
     //getting pointer by reinterpret_cast is not UB,
     //accessing through this pointer is UB, but access is done by implementation of connect,
@@ -178,7 +178,7 @@ struct Socket
 
     EHL_THROW_IF(r != 0, sys_errc::last_error());
 
-    return Connection<AF>(m_handle_, addr);
+    return Connection<SI.address_family>(m_handle_, addr);
   }
 
   Socket(Socket&& s) : m_handle_(s.m_handle_)
@@ -244,19 +244,69 @@ struct Net
   }
 #endif
 
-  template<AddressFamily AF, SocketType ST, SocketProtocol SP, auto EHP = ehl::Policy::Exception>
-  [[nodiscard]]
-  ehl::Result_t<Socket<AF, ST, SP>, sys_errc::ErrorCode, EHP> socket() const noexcept(EHP != ehl::Policy::Exception)
+  template<SocketInfo SI, auto EHP = ehl::Policy::Exception>
+  [[nodiscard]] ehl::Result_t<Socket<SI, details::inv_empty>, sys_errc::ErrorCode, EHP>
+  socket() const noexcept(EHP != ehl::Policy::Exception)
   {
-    constexpr int af = static_cast<int>(AF);
-    constexpr int st = static_cast<int>(ST);
-    constexpr int sp = static_cast<int>(SP);
+    constexpr int af = static_cast<int>(SI.address_family);
+    constexpr int st = static_cast<int>(SI.type);
+    constexpr int sp = static_cast<int>(SI.protocol);
 
     auto r = ::socket(af, st, sp);
 
     EHL_THROW_IF(r == details::invalid_socket, sys_errc::last_error());
 
-    return Socket<AF, ST, SP>(r);
+    return Socket<SI, details::inv_empty>(r);
+  }
+
+  template<SocketInfo SI, auto EHP = ehl::Policy::Exception>
+  [[nodiscard]] ehl::Result_t<Socket<SI, details::inv_bind>, sys_errc::ErrorCode, EHP>
+  socket(const Address<SI.address_family>& addr) const noexcept(EHP != ehl::Policy::Exception)
+  {
+    constexpr int af = static_cast<int>(SI.address_family);
+    constexpr int st = static_cast<int>(SI.type);
+    constexpr int sp = static_cast<int>(SI.protocol);
+
+    auto sfd = ::socket(af, st, sp);
+
+    EHL_THROW_IF(sfd == details::invalid_socket, sys_errc::last_error());
+
+    //getting pointer by reinterpret_cast is not UB,
+    //accessing through this pointer is UB, but access is done by implementation of bind,
+    //implementation know that pointer is from cast and deals with it
+    int r = ::bind(sfd, reinterpret_cast<const sockaddr*>(&addr), sizeof(addr));
+
+    EHL_THROW_IF(r != 0, sys_errc::last_error());
+
+    return Socket<SI, details::inv_bind>{sfd};
+  }
+
+  template<SocketInfo SI, auto EHP = ehl::Policy::Exception> requires (SI.protocol == SocketProtocol::TCP)
+  [[nodiscard]] ehl::Result_t<Socket<SI, details::inv_bind_listen>, sys_errc::ErrorCode, EHP>
+  socket(const Address<SI.address_family>& addr, unsigned max_connections) const noexcept(EHP != ehl::Policy::Exception)
+  {
+    constexpr int af = static_cast<int>(SI.address_family);
+    constexpr int st = static_cast<int>(SI.type);
+    constexpr int sp = static_cast<int>(SI.protocol);
+
+    auto sfd = ::socket(af, st, sp);
+
+    EHL_THROW_IF(sfd == details::invalid_socket, sys_errc::last_error());
+
+    int r;
+
+    //getting pointer by reinterpret_cast is not UB,
+    //accessing through this pointer is UB, but access is done by implementation of bind,
+    //implementation know that pointer is from cast and deals with it
+    r = ::bind(sfd, reinterpret_cast<const sockaddr*>(&addr), sizeof(addr));
+
+    EHL_THROW_IF(r != 0, sys_errc::last_error());
+
+    r = ::listen(sfd, max_connections);
+
+    EHL_THROW_IF(r != 0, sys_errc::last_error());
+
+    return Socket<SI, details::inv_bind_listen>{sfd};
   }
 
 private:
