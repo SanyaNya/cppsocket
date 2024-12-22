@@ -11,4 +11,7 @@ int main() try
   sock.listen<EHP>(10);
   auto conn = sock.accept<EHP>();
 }
-catch(int err) { return err; }
+catch(const sys_errc::ErrorCode& err)
+{
+  std::cout << err.message() << std::endl;
+}
