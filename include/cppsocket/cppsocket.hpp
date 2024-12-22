@@ -132,15 +132,62 @@ public:
 };
 
 template<AddressFamily AF>
-struct Connection
+struct IncomingConnection
 {
+  IncomingConnection(IncomingConnection&& s) noexcept : m_handle_(s.m_handle_)
+  {
+    s.m_handle_ = details::invalid_socket;
+  }
+
+  IncomingConnection(const IncomingConnection&) noexcept = delete;
+
+  IncomingConnection& operator=(IncomingConnection&& s) noexcept
+  {
+    m_handle_ = std::exchange(s.m_handle_, details::invalid_socket);
+    return *this;
+  }
+
+  IncomingConnection& operator=(const IncomingConnection&) noexcept = delete;
+
+  ~IncomingConnection()
+  {
+    if(m_handle_ != details::invalid_socket)
+    {
+    #if CPPS_WIN_IMPL
+      ::closesocket(m_handle_);
+    #elif CPPS_POSIX_IMPL
+      ::close(m_handle_);
+    #endif
+    }
+  }
+
 private:
   template<SocketInfo, details::InvInfo>
   friend struct Socket;
 
-  Connection(details::SocketHandle handle, Address<AF> addr) noexcept : m_handle_(handle), m_addr_(addr) {}
+  IncomingConnection(details::SocketHandle handle, Address<AF> addr) noexcept : m_handle_(handle), m_addr_(addr) {}
 
   details::SocketHandle m_handle_;
+  Address<AF> m_addr_;
+};
+
+template<AddressFamily AF>
+struct OutgoingConnection
+{
+  constexpr OutgoingConnection(OutgoingConnection&& s) noexcept = default;
+
+  constexpr OutgoingConnection(const OutgoingConnection&) noexcept = delete;
+
+  constexpr OutgoingConnection& operator=(OutgoingConnection&& s) noexcept = default;
+
+  constexpr OutgoingConnection& operator=(const OutgoingConnection&) noexcept = delete;
+
+private:
+  template<SocketInfo, details::InvInfo>
+  friend struct Socket;
+
+  constexpr OutgoingConnection(Address<AF> addr) noexcept : m_addr_(addr) {}
+
   Address<AF> m_addr_;
 };
 
@@ -151,7 +198,7 @@ struct Socket
   static_assert(!(SI.type == SocketType::Datagram && SI.protocol == SocketProtocol::TCP));
 
   template<auto EHP = ehl::Policy::Exception>
-  [[nodiscard]] ehl::Result_t<Connection<SI.address_family>, sys_errc::ErrorCode, EHP> accept()
+  [[nodiscard]] ehl::Result_t<IncomingConnection<SI.address_family>, sys_errc::ErrorCode, EHP> accept()
     noexcept(EHP != ehl::Policy::Exception) requires (SI.type == SocketType::Stream && INV.binded && INV.listening)
   {
     Address<SI.address_family> addr;
@@ -163,12 +210,12 @@ struct Socket
 
     EHL_THROW_IF(r == details::invalid_socket, sys_errc::last_error());
 
-    return Connection<SI.address_family>(r, addr);
+    return IncomingConnection<SI.address_family>(r, addr);
   }
 
   template<auto EHP = ehl::Policy::Exception>
   [[nodiscard]]
-  ehl::Result_t<Connection<SI.address_family>, sys_errc::ErrorCode, EHP> connect(const Address<SI.address_family>& addr)
+  ehl::Result_t<OutgoingConnection<SI.address_family>, sys_errc::ErrorCode, EHP> connect(const Address<SI.address_family>& addr)
     noexcept(EHP != ehl::Policy::Exception)
   {
     //getting pointer by reinterpret_cast is not UB,
@@ -178,7 +225,7 @@ struct Socket
 
     EHL_THROW_IF(r != 0, sys_errc::last_error());
 
-    return Connection<SI.address_family>(m_handle_, addr);
+    return OutgoingConnection<SI.address_family>(addr);
   }
 
   Socket(Socket&& s) : m_handle_(s.m_handle_)
