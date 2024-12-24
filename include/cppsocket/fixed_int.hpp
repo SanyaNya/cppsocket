@@ -10,9 +10,9 @@ namespace cpps
 template<std::integral T>
 struct fixed_int
 {
-  constexpr operator T() noexcept { return m_val_; }
+  constexpr operator T() const noexcept { return m_val_; }
   
-  constexpr T underlying_value() noexcept { return m_val_; }
+  constexpr T underlying_value() const noexcept { return m_val_; }
 
   T m_val_;
 };
