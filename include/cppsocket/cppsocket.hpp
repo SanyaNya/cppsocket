@@ -263,6 +263,54 @@ struct Socket
     return OutgoingConnection<SI.address_family, CS>(addr);
   }
 
+  template<typename T>
+  struct recvfrom_result
+  {
+    T value;
+    Address<SI.address_family> addr;
+  };
+
+  template<packet_type T, ConnectionSettings CS = default_connection_settings, auto EHP = ehl::Policy::Exception>
+    requires (std::is_trivially_copyable_v<T> && SI.type == SocketType::Datagram)
+  [[nodiscard]] ehl::Result_t<recvfrom_result<T>, sys_errc::ErrorCode, EHP> recvfrom()
+    noexcept(EHP != ehl::Policy::Exception)
+  {
+    recvfrom_result<T> result;
+    details::socklen_type addrlen = sizeof(result.addr);
+    //getting pointer by reinterpret_cast is not UB,
+    //accessing through this pointer is UB, but access is done by implementation of recvfrom,
+    //implementation know that pointer is from cast and deals with it
+    ssize_t r = ::recvfrom(
+      m_handle_, reinterpret_cast<std::byte*>(&result.value), sizeof(T), 0, reinterpret_cast<sockaddr*>(&result.addr), &addrlen);
+
+    EHL_THROW_IF(r < sizeof(T), sys_errc::last_error());
+
+    if constexpr(CS.convert_byte_order)
+      details::convert_byte_order(result.value);
+
+    return result;
+  }
+
+  template<packet_type T, ConnectionSettings CS = default_connection_settings, auto EHP = ehl::Policy::Exception>
+    requires (std::is_trivially_copyable_v<T> && SI.type == SocketType::Datagram)
+  [[nodiscard]] ehl::Result_t<void, sys_errc::ErrorCode, EHP> sendto(const T& t, const Address<SI.address_family>& addr)
+    noexcept(EHP != ehl::Policy::Exception)
+  {
+    T t_copy = t;
+
+    if constexpr(CS.convert_byte_order)
+      details::convert_byte_order(t_copy);
+
+    details::socklen_type addrlen = sizeof(addr);
+    //getting pointer by reinterpret_cast is not UB,
+    //accessing through this pointer is UB, but access is done by implementation of recvfrom,
+    //implementation know that pointer is from cast and deals with it
+    ssize_t r = ::sendto(
+      m_handle_, reinterpret_cast<const std::byte*>(&t_copy), sizeof(T), 0, reinterpret_cast<const sockaddr*>(&addr), addrlen);
+
+    EHL_THROW_IF(r < sizeof(T), sys_errc::last_error());
+  }
+
   Socket(Socket&& s) : m_handle_(s.m_handle_)
   {
     s.m_handle_ = details::invalid_socket;
