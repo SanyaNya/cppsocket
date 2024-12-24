@@ -1,6 +1,9 @@
 include(cflags.cmake)
 
-add_executable(init init.cpp)
-target_link_libraries(init cppsocket)
+add_executable(server server.cpp)
+target_link_libraries(server cppsocket)
 
-add_executable(initc init.c)
+add_executable(client client.cpp)
+target_link_libraries(client cppsocket)
+
+add_executable(serverc server.c)
