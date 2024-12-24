@@ -228,7 +228,7 @@ private:
   Address<AF> m_addr_;
 };
 
-template<SocketInfo SI, details::InvInfo INV>
+template<SocketInfo SI, details::InvInfo INV, ConnectionSettings SCS>
 struct Socket
 {
   static_assert(!(SI.type == SocketType::Stream && SI.protocol == SocketProtocol::UDP));
@@ -248,6 +248,33 @@ struct Socket
     EHL_THROW_IF(r == details::invalid_socket, sys_errc::last_error());
 
     return IncomingConnection<SI.address_family, CS>(r, addr);
+  }
+
+  template<packet_type T, auto EHP = ehl::Policy::Exception> requires (std::is_trivially_copyable_v<T> && INV.connected)
+  [[nodiscard]] ehl::Result_t<T, sys_errc::ErrorCode, EHP> recv() noexcept(EHP != ehl::Policy::Exception)
+  {
+    T t;
+    ssize_t r = ::recv(m_handle_, reinterpret_cast<std::byte*>(&t), sizeof(T), 0);
+
+    EHL_THROW_IF(r < sizeof(T), sys_errc::last_error());
+
+    if constexpr(SCS.convert_byte_order)
+      details::convert_byte_order(t);
+
+    return t;
+  }
+
+  template<packet_type T, auto EHP = ehl::Policy::Exception> requires (std::is_trivially_copyable_v<T> && INV.connected)
+  [[nodiscard]] ehl::Result_t<void, sys_errc::ErrorCode, EHP> send(const T& t) noexcept(EHP != ehl::Policy::Exception)
+  {
+    T t_copy = t;
+
+    if constexpr(SCS.convert_byte_order)
+      details::convert_byte_order(t_copy);
+
+    ssize_t r = ::send(m_handle_, reinterpret_cast<const std::byte*>(&t_copy), sizeof(T), 0);
+
+    EHL_THROW_IF(r < sizeof(T), sys_errc::last_error());
   }
 
   template<typename T>
@@ -361,8 +388,8 @@ struct Net
   }
 #endif
 
-  template<SocketInfo SI, auto EHP = ehl::Policy::Exception>
-  [[nodiscard]] ehl::Result_t<Socket<SI, details::inv_connect>, sys_errc::ErrorCode, EHP>
+  template<SocketInfo SI, ConnectionSettings SCS = default_connection_settings, auto EHP = ehl::Policy::Exception>
+  [[nodiscard]] ehl::Result_t<Socket<SI, details::inv_connect, SCS>, sys_errc::ErrorCode, EHP>
   client_socket(const Address<SI.address_family>& dest_addr) const noexcept(EHP != ehl::Policy::Exception)
   {
     constexpr int af = static_cast<int>(SI.address_family);
@@ -380,11 +407,11 @@ struct Net
 
     EHL_THROW_IF(r != 0, sys_errc::last_error());
 
-    return Socket<SI, details::inv_connect>{sfd};
+    return Socket<SI, details::inv_connect, SCS>{sfd};
   }
 
-  template<SocketInfo SI, auto EHP = ehl::Policy::Exception>
-  [[nodiscard]] ehl::Result_t<Socket<SI, details::inv_bind_connect>, sys_errc::ErrorCode, EHP>
+  template<SocketInfo SI, ConnectionSettings SCS = default_connection_settings, auto EHP = ehl::Policy::Exception>
+  [[nodiscard]] ehl::Result_t<Socket<SI, details::inv_bind_connect, SCS>, sys_errc::ErrorCode, EHP>
   client_socket(const Address<SI.address_family>& bind_addr, const Address<SI.address_family>& dest_addr)
     const noexcept(EHP != ehl::Policy::Exception)
   {
@@ -412,11 +439,11 @@ struct Net
 
     EHL_THROW_IF(r != 0, sys_errc::last_error());
 
-    return Socket<SI, details::inv_bind_connect>{sfd};
+    return Socket<SI, details::inv_bind_connect, SCS>{sfd};
   }
 
   template<SocketInfo SI, auto EHP = ehl::Policy::Exception>
-  [[nodiscard]] ehl::Result_t<Socket<SI, details::inv_bind>, sys_errc::ErrorCode, EHP>
+  [[nodiscard]] ehl::Result_t<Socket<SI, details::inv_bind, default_connection_settings>, sys_errc::ErrorCode, EHP>
   server_socket(const Address<SI.address_family>& bind_addr)
     const noexcept(EHP != ehl::Policy::Exception)
   {
@@ -435,11 +462,11 @@ struct Net
 
     EHL_THROW_IF(r != 0, sys_errc::last_error());
 
-    return Socket<SI, details::inv_bind>{sfd};
+    return Socket<SI, details::inv_bind, default_connection_settings>{sfd};
   }
 
   template<SocketInfo SI, auto EHP = ehl::Policy::Exception> requires (SI.type == SocketType::Stream)
-  [[nodiscard]] ehl::Result_t<Socket<SI, details::inv_bind_listen>, sys_errc::ErrorCode, EHP>
+  [[nodiscard]] ehl::Result_t<Socket<SI, details::inv_bind_listen, default_connection_settings>, sys_errc::ErrorCode, EHP>
   server_socket(const Address<SI.address_family>& bind_addr, unsigned max_connections)
     const noexcept(EHP != ehl::Policy::Exception)
   {
@@ -464,7 +491,7 @@ struct Net
 
     EHL_THROW_IF(r != 0, sys_errc::last_error());
 
-    return Socket<SI, details::inv_bind_listen>{sfd};
+    return Socket<SI, details::inv_bind_listen, default_connection_settings>{sfd};
   }
 
 private:
