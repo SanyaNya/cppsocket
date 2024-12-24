@@ -42,7 +42,7 @@ consteval size_t string_length(const char* s)
   size_t len = 0;
   while(s[len] != '\0') ++len;
 
-  return len;
+  return len+1;
 }
 
 consteval bool isdigit(char c)
@@ -228,7 +228,7 @@ consteval int inet_addr_canonical_at(const char* str, ssize_t idx, in_addr_t& s_
               c3 = parse_inet_component_canonical(str, sep2 + 1),
               c4 = parse_inet_component_canonical(str, sep3 + 1);
 
-    if ( c1 < 0 || c1 < 0 || c2 < 0 || c3 < 0 )
+    if ( c1 < 0 || c2 < 0 || c3 < 0 || c4 < 0 )
         return -1;
 
     s_addr = ct_hton(static_cast<uint32_t>((c1 << 24) | (c2 << 16) | (c3 << 8) | c4));

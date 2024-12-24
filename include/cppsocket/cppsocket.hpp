@@ -117,6 +117,9 @@ public:
     sockaddr_type saddr{};
     int r = 0;
 
+    if constexpr(std::endian::native == std::endian::little)
+      port = std::byteswap(port);
+
     if constexpr(AF == AddressFamily::IPv4)
     {
       saddr.sin_family = AF_INET;
