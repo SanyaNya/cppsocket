@@ -99,7 +99,7 @@ constexpr InvInfo inv_bind_listen  = { .binded = true,  .listening = true,  .con
 template<AddressFamily AF>
 class Address
 {
-  template<SocketInfo, details::InvInfo>
+  template<SocketInfo, details::InvInfo, ConnectionSettings>
   friend struct Socket;
 
   using sockaddr_type = std::conditional_t<AF == AddressFamily::IPv4, sockaddr_in, sockaddr_in6>;
@@ -199,32 +199,12 @@ struct IncomingConnection
   }
 
 private:
-  template<SocketInfo, details::InvInfo>
+  template<SocketInfo, details::InvInfo, ConnectionSettings>
   friend struct Socket;
 
   IncomingConnection(details::SocketHandle handle, Address<AF> addr) noexcept : m_handle_(handle), m_addr_(addr) {}
 
   details::SocketHandle m_handle_;
-  Address<AF> m_addr_;
-};
-
-template<AddressFamily AF, ConnectionSettings CS>
-struct OutgoingConnection
-{
-  constexpr OutgoingConnection(OutgoingConnection&& s) noexcept = default;
-
-  constexpr OutgoingConnection(const OutgoingConnection&) noexcept = delete;
-
-  constexpr OutgoingConnection& operator=(OutgoingConnection&& s) noexcept = default;
-
-  constexpr OutgoingConnection& operator=(const OutgoingConnection&) noexcept = delete;
-
-private:
-  template<SocketInfo, details::InvInfo>
-  friend struct Socket;
-
-  constexpr OutgoingConnection(Address<AF> addr) noexcept : m_addr_(addr) {}
-
   Address<AF> m_addr_;
 };
 
