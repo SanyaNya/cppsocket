@@ -1,6 +1,5 @@
 #pragma once
 
-#include <type_traits>
 #include "details/helper_macros.hpp"
 
 //Include platform specific headers
@@ -27,6 +26,8 @@
 #include "system_errc/system_errc.hpp"
 #include "strict_enum/strict_enum.hpp"
 #include "details/ct_ip.hpp"
+#include "details/convert_byte_order.hpp"
+#include "is_packet.hpp"
 
 namespace cpps
 {
@@ -65,6 +66,13 @@ constexpr SocketInfo SI_IPv4_TCP = { AddressFamily::IPv4, SocketType::Stream, So
 constexpr SocketInfo SI_IPv6_TCP = { AddressFamily::IPv6, SocketType::Stream, SocketProtocol::TCP };
 constexpr SocketInfo SI_IPv4_UDP = { AddressFamily::IPv4, SocketType::Datagram, SocketProtocol::UDP };
 constexpr SocketInfo SI_IPv6_UDP = { AddressFamily::IPv6, SocketType::Datagram, SocketProtocol::UDP };
+
+struct ConnectionSettings
+{
+  bool convert_byte_order;
+};
+
+constexpr ConnectionSettings default_connection_settings = { .convert_byte_order = true };
 
 namespace details
 {
@@ -131,7 +139,7 @@ public:
   }
 };
 
-template<AddressFamily AF>
+template<AddressFamily AF, ConnectionSettings CS>
 struct IncomingConnection
 {
   IncomingConnection(IncomingConnection&& s) noexcept : m_handle_(s.m_handle_)
@@ -161,6 +169,33 @@ struct IncomingConnection
     }
   }
 
+  template<packet_type T, auto EHP = ehl::Policy::Exception> requires std::is_trivially_copyable_v<T>
+  [[nodiscard]] ehl::Result_t<T, sys_errc::ErrorCode, EHP> recv() noexcept(EHP != ehl::Policy::Exception)
+  {
+    T t;
+    ssize_t r = ::recv(m_handle_, reinterpret_cast<std::byte*>(&t), sizeof(T), 0);
+
+    EHL_THROW_IF(r < sizeof(T), sys_errc::last_error());
+
+    if constexpr(CS.convert_byte_order)
+      details::convert_byte_order(t);
+
+    return t;
+  }
+
+  template<packet_type T, auto EHP = ehl::Policy::Exception> requires std::is_trivially_copyable_v<T>
+  [[nodiscard]] ehl::Result_t<void, sys_errc::ErrorCode, EHP> send(const T& t) noexcept(EHP != ehl::Policy::Exception)
+  {
+    T t_copy = t;
+
+    if constexpr(CS.convert_byte_order)
+      details::convert_byte_order(t_copy);
+
+    ssize_t r = ::send(m_handle_, reinterpret_cast<const std::byte*>(&t_copy), sizeof(T), 0);
+
+    EHL_THROW_IF(r < sizeof(T), sys_errc::last_error());
+  }
+
 private:
   template<SocketInfo, details::InvInfo>
   friend struct Socket;
@@ -171,7 +206,7 @@ private:
   Address<AF> m_addr_;
 };
 
-template<AddressFamily AF>
+template<AddressFamily AF, ConnectionSettings CS>
 struct OutgoingConnection
 {
   constexpr OutgoingConnection(OutgoingConnection&& s) noexcept = default;
@@ -197,8 +232,8 @@ struct Socket
   static_assert(!(SI.type == SocketType::Stream && SI.protocol == SocketProtocol::UDP));
   static_assert(!(SI.type == SocketType::Datagram && SI.protocol == SocketProtocol::TCP));
 
-  template<auto EHP = ehl::Policy::Exception>
-  [[nodiscard]] ehl::Result_t<IncomingConnection<SI.address_family>, sys_errc::ErrorCode, EHP> accept()
+  template<ConnectionSettings CS = default_connection_settings, auto EHP = ehl::Policy::Exception>
+  [[nodiscard]] ehl::Result_t<IncomingConnection<SI.address_family, CS>, sys_errc::ErrorCode, EHP> accept()
     noexcept(EHP != ehl::Policy::Exception) requires (SI.type == SocketType::Stream && INV.binded && INV.listening)
   {
     Address<SI.address_family> addr;
@@ -210,12 +245,12 @@ struct Socket
 
     EHL_THROW_IF(r == details::invalid_socket, sys_errc::last_error());
 
-    return IncomingConnection<SI.address_family>(r, addr);
+    return IncomingConnection<SI.address_family, CS>(r, addr);
   }
 
-  template<auto EHP = ehl::Policy::Exception>
+  template<ConnectionSettings CS = default_connection_settings, auto EHP = ehl::Policy::Exception>
   [[nodiscard]]
-  ehl::Result_t<OutgoingConnection<SI.address_family>, sys_errc::ErrorCode, EHP> connect(const Address<SI.address_family>& addr)
+  ehl::Result_t<OutgoingConnection<SI.address_family, CS>, sys_errc::ErrorCode, EHP> connect(const Address<SI.address_family>& addr)
     noexcept(EHP != ehl::Policy::Exception)
   {
     //getting pointer by reinterpret_cast is not UB,
@@ -225,7 +260,7 @@ struct Socket
 
     EHL_THROW_IF(r != 0, sys_errc::last_error());
 
-    return OutgoingConnection<SI.address_family>(addr);
+    return OutgoingConnection<SI.address_family, CS>(addr);
   }
 
   Socket(Socket&& s) : m_handle_(s.m_handle_)

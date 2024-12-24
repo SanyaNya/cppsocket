@@ -16,9 +16,10 @@ include(Fetch)
 fetch_project(ehl https://github.com/SanyaNya/ehl v1.1.1)
 fetch_project(system_errc https://github.com/SanyaNya/system_errc v0.3.0)
 fetch_project(strict_enum https://github.com/SanyaNya/strict_enum v1.3.2)
+fetch_project(aggr_refl https://github.com/SanyaNya/aggr_refl v1.2.0)
 
 add_library(cppsocket INTERFACE)
-target_link_libraries(cppsocket INTERFACE ehl system_errc strict_enum)
+target_link_libraries(cppsocket INTERFACE ehl system_errc strict_enum aggr_refl)
 target_include_directories(cppsocket INTERFACE ${cppsocket_SOURCE_DIR}/include)
 
 if(BUILD_EXAMPLES)
