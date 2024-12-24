@@ -3,6 +3,8 @@
 # Release: max optimization and LTO, warnings disabled
 
 if(MSVC)
+  add_compile_options(/Zc:preprocessor)
+
   add_compile_options(
     $<$<CONFIG:Debug>:/Od>
     $<$<CONFIG:Debug>:/Zi>

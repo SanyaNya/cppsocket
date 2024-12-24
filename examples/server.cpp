@@ -16,7 +16,7 @@ int main() try
   constexpr auto EHP = ehl::Policy::Exception;
   auto net = cpps::Net::make<EHP>();
 
-  constexpr auto addr = cpps::Address<cpps::AddressFamily::IPv4>::make<EHP>("127.0.0.1", 6969);
+  constexpr auto addr = cpps::Address<cpps::AddressFamily::IPv4>::make_cx<EHP>("127.0.0.1", 6969);
   auto sock = net.server_socket<cpps::SI_IPv4_TCP, EHP>(addr, 10);
 
   auto conn = sock.accept<cpps::default_connection_settings, EHP>();
@@ -29,5 +29,10 @@ int main() try
 }
 catch(const sys_errc::ErrorCode& err)
 {
-  std::cout << "Error: " << err.message() << std::endl;
+#if defined(WIN32) || defined(__MINGW32__)
+  std::wcout
+#else
+  std::cout
+#endif
+  << "Error: " << err.message() << std::endl;
 }

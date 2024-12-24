@@ -96,6 +96,8 @@ constexpr InvInfo inv_bind_listen  = { .binded = true,  .listening = true,  .con
 
 } //namespace details
 
+using port_t = PP_IFE(CPPS_WIN_IMPL)(USHORT)(in_port_t);
+
 template<AddressFamily AF>
 class Address
 {
@@ -110,8 +112,34 @@ class Address
   constexpr Address(sockaddr_type saddr) noexcept : m_saddr_(saddr) {}
 
 public:
+  template<auto EHP = ehl::Policy::Exception, std::size_t N>
+  [[nodiscard]] static consteval ehl::Result_t<Address, AddressError, EHP> make_cx(const char (&addr)[N], port_t port)
+    noexcept
+  {
+    sockaddr_type saddr{};
+
+    if constexpr(std::endian::native == std::endian::little)
+      port = std::byteswap(port);
+
+    if constexpr(AF == AddressFamily::IPv4)
+    {
+      saddr.sin_family = AF_INET;
+      saddr.sin_port = port;
+      saddr.sin_addr = details::ct_inet_pton<AF_INET>(addr);
+    }
+
+    if constexpr(AF == AddressFamily::IPv6)
+    {
+      saddr.sin6_family = AF_INET6;
+      saddr.sin6_port = port;
+      saddr.sin6_addr = details::ct_inet_pton<AF_INET6>(addr);
+    }
+
+    return Address(saddr);
+  }
+
   template<auto EHP = ehl::Policy::Exception>
-  [[nodiscard]] static constexpr ehl::Result_t<Address, AddressError, EHP> make(const char* addr, in_port_t port)
+  [[nodiscard]] static ehl::Result_t<Address, AddressError, EHP> make(const char* addr, port_t port)
     noexcept(EHP != ehl::Policy::Exception)
   {
     sockaddr_type saddr{};
@@ -124,18 +152,14 @@ public:
     {
       saddr.sin_family = AF_INET;
       saddr.sin_port = port;
-
-      if consteval { saddr.sin_addr = details::ct_inet_pton<AF_INET>(addr); r = 1; }
-      else { r = inet_pton(AF_INET, addr, &saddr.sin_addr); }
+      r = inet_pton(AF_INET, addr, &saddr.sin_addr);
     }
 
     if constexpr(AF == AddressFamily::IPv6)
     {
       saddr.sin6_family = AF_INET6;
       saddr.sin6_port = port;
-
-      if consteval { saddr.sin6_addr = details::ct_inet_pton<AF_INET6>(addr); r = 1; }
-      else { r = inet_pton(AF_INET6, addr, &saddr.sin6_addr); }
+      r = inet_pton(AF_INET6, addr, &saddr.sin6_addr);
     }
 
     EHL_THROW_IF(r == 0, AddressError(AddressError::Invalid));
@@ -178,7 +202,7 @@ struct IncomingConnection
   [[nodiscard]] ehl::Result_t<T, sys_errc::ErrorCode, EHP> recv() noexcept(EHP != ehl::Policy::Exception)
   {
     T t;
-    ssize_t r = ::recv(m_handle_, reinterpret_cast<std::byte*>(&t), sizeof(T), 0);
+    auto r = ::recv(m_handle_, reinterpret_cast<char*>(&t), sizeof(T), 0);
 
     EHL_THROW_IF(r < sizeof(T), sys_errc::last_error());
 
@@ -196,7 +220,7 @@ struct IncomingConnection
     if constexpr(CS.convert_byte_order)
       details::convert_byte_order(t_copy);
 
-    ssize_t r = ::send(m_handle_, reinterpret_cast<const std::byte*>(&t_copy), sizeof(T), 0);
+    auto r = ::send(m_handle_, reinterpret_cast<const char*>(&t_copy), sizeof(T), 0);
 
     EHL_THROW_IF(r < sizeof(T), sys_errc::last_error());
   }
@@ -237,7 +261,7 @@ struct Socket
   [[nodiscard]] ehl::Result_t<T, sys_errc::ErrorCode, EHP> recv() noexcept(EHP != ehl::Policy::Exception)
   {
     T t;
-    ssize_t r = ::recv(m_handle_, reinterpret_cast<std::byte*>(&t), sizeof(T), 0);
+    auto r = ::recv(m_handle_, reinterpret_cast<char*>(&t), sizeof(T), 0);
 
     EHL_THROW_IF(r < sizeof(T), sys_errc::last_error());
 
@@ -255,7 +279,7 @@ struct Socket
     if constexpr(SCS.convert_byte_order)
       details::convert_byte_order(t_copy);
 
-    ssize_t r = ::send(m_handle_, reinterpret_cast<const std::byte*>(&t_copy), sizeof(T), 0);
+    auto r = ::send(m_handle_, reinterpret_cast<const char*>(&t_copy), sizeof(T), 0);
 
     EHL_THROW_IF(r < sizeof(T), sys_errc::last_error());
   }
@@ -277,8 +301,8 @@ struct Socket
     //getting pointer by reinterpret_cast is not UB,
     //accessing through this pointer is UB, but access is done by implementation of recvfrom,
     //implementation know that pointer is from cast and deals with it
-    ssize_t r = ::recvfrom(
-      m_handle_, reinterpret_cast<std::byte*>(&result.value), sizeof(T), 0, reinterpret_cast<sockaddr*>(&result.addr), &addrlen);
+    auto r = ::recvfrom(
+      m_handle_, reinterpret_cast<char*>(&result.value), sizeof(T), 0, reinterpret_cast<sockaddr*>(&result.addr), &addrlen);
 
     EHL_THROW_IF(r < sizeof(T), sys_errc::last_error());
 
@@ -302,8 +326,8 @@ struct Socket
     //getting pointer by reinterpret_cast is not UB,
     //accessing through this pointer is UB, but access is done by implementation of recvfrom,
     //implementation know that pointer is from cast and deals with it
-    ssize_t r = ::sendto(
-      m_handle_, reinterpret_cast<const std::byte*>(&t_copy), sizeof(T), 0, reinterpret_cast<const sockaddr*>(&addr), addrlen);
+    auto r = ::sendto(
+      m_handle_, reinterpret_cast<const char*>(&t_copy), sizeof(T), 0, reinterpret_cast<const sockaddr*>(&addr), addrlen);
 
     EHL_THROW_IF(r < sizeof(T), sys_errc::last_error());
   }

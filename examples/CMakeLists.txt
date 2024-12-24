@@ -6,4 +6,4 @@ target_link_libraries(server cppsocket)
 add_executable(client client.cpp)
 target_link_libraries(client cppsocket)
 
-add_executable(serverc server.c)
+#add_executable(serverc server.c)

@@ -15,7 +15,7 @@ int main() try
 {
   auto net = cpps::Net::make();
 
-  constexpr auto addr = cpps::Address<cpps::AddressFamily::IPv4>::make("127.0.0.1", 6969);
+  constexpr auto addr = cpps::Address<cpps::AddressFamily::IPv4>::make_cx("127.0.0.1", 6969);
   auto sock = net.client_socket<cpps::SI_IPv4_TCP>(addr);
 
   Packet p{{1, 2, 3, 4}};
@@ -27,5 +27,10 @@ int main() try
 }
 catch(const sys_errc::ErrorCode& err)
 {
-  std::cout << "Error: " << err.message() << std::endl;
+#if defined(WIN32) || defined(__MINGW32__)
+  std::wcout
+#else
+  std::cout
+#endif
+  << "Error: " << err.message() << std::endl;
 }
