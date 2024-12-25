@@ -278,7 +278,7 @@ consteval int inet6_aton(const char (&str)[N], struct in6_addr& in6)
     int shortener_pos = -1;
     size_t idx = 0;
     in_addr_t_type v4_addr = -1;
-    auto remaining_chars = [N](size_t pos) constexpr { return N - 1 - pos; };
+    auto remaining_chars = [](size_t pos) constexpr { return N - 1 - pos; };
 
     // The address must contain at least two chars, cannot start/end with a separator alone.
     if ( N < 3 || (str[0] == ':' && str[1] != ':') || (str[N-1] == ':' && str[N-2] != ':') )
