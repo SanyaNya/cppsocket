@@ -22,9 +22,9 @@
   #include <unistd.h>
 #endif
 
-#include "ehl/ehl.hpp"
-#include "system_errc/system_errc.hpp"
-#include "strict_enum/strict_enum.hpp"
+#include <ehl/ehl.hpp>
+#include <system_errc/system_errc.hpp>
+#include <strict_enum/strict_enum.hpp>
 #include "details/ct_ip.hpp"
 #include "details/convert_byte_order.hpp"
 #include "is_packet.hpp"

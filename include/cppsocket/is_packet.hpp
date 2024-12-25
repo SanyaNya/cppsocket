@@ -1,7 +1,7 @@
 #pragma once
 
 #include <cstddef>
-#include "aggr_refl/aggregate_reflection.hpp"
+#include <aggr_refl/aggregate_reflection.hpp>
 #include "cppsocket/fixed_int.hpp"
 
 namespace cpps
