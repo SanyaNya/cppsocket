@@ -198,7 +198,8 @@ struct IncomingConnection
     }
   }
 
-  template<packet_type T, auto EHP = ehl::Policy::Exception> requires std::is_trivially_copyable_v<T>
+  template<packet_type T, auto EHP = ehl::Policy::Exception>
+    requires (std::is_trivially_copyable_v<T> && std::has_unique_object_representations_v<T>)
   [[nodiscard]] ehl::Result_t<T, sys_errc::ErrorCode, EHP> recv() noexcept(EHP != ehl::Policy::Exception)
   {
     T t;
@@ -212,7 +213,8 @@ struct IncomingConnection
     return t;
   }
 
-  template<packet_type T, auto EHP = ehl::Policy::Exception> requires std::is_trivially_copyable_v<T>
+  template<packet_type T, auto EHP = ehl::Policy::Exception>
+    requires (std::is_trivially_copyable_v<T> && std::has_unique_object_representations_v<T>)
   [[nodiscard]] ehl::Result_t<void, sys_errc::ErrorCode, EHP> send(const T& t) noexcept(EHP != ehl::Policy::Exception)
   {
     T t_copy = t;
@@ -257,7 +259,8 @@ struct Socket
     return IncomingConnection<SI.address_family, CS>(r, addr);
   }
 
-  template<packet_type T, auto EHP = ehl::Policy::Exception> requires (std::is_trivially_copyable_v<T> && INV.connected)
+  template<packet_type T, auto EHP = ehl::Policy::Exception>
+    requires (std::is_trivially_copyable_v<T> && std::has_unique_object_representations_v<T> && INV.connected)
   [[nodiscard]] ehl::Result_t<T, sys_errc::ErrorCode, EHP> recv() noexcept(EHP != ehl::Policy::Exception)
   {
     T t;
@@ -271,7 +274,8 @@ struct Socket
     return t;
   }
 
-  template<packet_type T, auto EHP = ehl::Policy::Exception> requires (std::is_trivially_copyable_v<T> && INV.connected)
+  template<packet_type T, auto EHP = ehl::Policy::Exception>
+    requires (std::is_trivially_copyable_v<T> && std::has_unique_object_representations_v<T> && INV.connected)
   [[nodiscard]] ehl::Result_t<void, sys_errc::ErrorCode, EHP> send(const T& t) noexcept(EHP != ehl::Policy::Exception)
   {
     T t_copy = t;
@@ -292,7 +296,10 @@ struct Socket
   };
 
   template<packet_type T, ConnectionSettings CS = default_connection_settings, auto EHP = ehl::Policy::Exception>
-    requires (std::is_trivially_copyable_v<T> && SI.type == SocketType::Datagram && INV.binded)
+    requires (std::is_trivially_copyable_v<T> &&
+              std::has_unique_object_representations_v<T> &&
+              SI.type == SocketType::Datagram &&
+              INV.binded)
   [[nodiscard]] ehl::Result_t<recvfrom_result<T>, sys_errc::ErrorCode, EHP> recvfrom()
     noexcept(EHP != ehl::Policy::Exception)
   {
@@ -313,7 +320,7 @@ struct Socket
   }
 
   template<packet_type T, ConnectionSettings CS = default_connection_settings, auto EHP = ehl::Policy::Exception>
-    requires (std::is_trivially_copyable_v<T> && SI.type == SocketType::Datagram)
+    requires (std::is_trivially_copyable_v<T> && std::has_unique_object_representations_v<T> && SI.type == SocketType::Datagram)
   [[nodiscard]] ehl::Result_t<void, sys_errc::ErrorCode, EHP> sendto(const T& t, const Address<SI.address_family>& addr)
     noexcept(EHP != ehl::Policy::Exception)
   {
