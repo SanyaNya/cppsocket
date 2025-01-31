@@ -27,6 +27,7 @@
 #include <strict_enum/strict_enum.hpp>
 #include "details/ct_ip.hpp"
 #include "details/convert_byte_order.hpp"
+#include "details/socket_resource.hpp"
 #include "is_packet.hpp"
 
 namespace cpps
@@ -77,10 +78,7 @@ constexpr ConnectionSettings default_connection_settings = { .convert_byte_order
 namespace details
 {
 
-using SocketHandle = std::invoke_result_t<decltype(::socket), int, int, int>;
 using socklen_type = PP_IFE(CPPS_WIN_IMPL)(int)(socklen_t);
-
-constexpr auto invalid_socket = PP_IFE(CPPS_WIN_IMPL)(INVALID_SOCKET)(-1);
 
 struct InvInfo
 {
@@ -171,33 +169,6 @@ public:
 template<AddressFamily AF, ConnectionSettings CS>
 struct IncomingConnection
 {
-  IncomingConnection(IncomingConnection&& s) noexcept : m_handle_(s.m_handle_)
-  {
-    s.m_handle_ = details::invalid_socket;
-  }
-
-  IncomingConnection(const IncomingConnection&) noexcept = delete;
-
-  IncomingConnection& operator=(IncomingConnection&& s) noexcept
-  {
-    m_handle_ = std::exchange(s.m_handle_, details::invalid_socket);
-    return *this;
-  }
-
-  IncomingConnection& operator=(const IncomingConnection&) noexcept = delete;
-
-  ~IncomingConnection()
-  {
-    if(m_handle_ != details::invalid_socket)
-    {
-    #if CPPS_WIN_IMPL
-      ::closesocket(m_handle_);
-    #elif CPPS_POSIX_IMPL
-      ::close(m_handle_);
-    #endif
-    }
-  }
-
   template<packet_type T, auto EHP = ehl::Policy::Exception>
     requires (std::is_trivially_copyable_v<T> && std::has_unique_object_representations_v<T>)
   [[nodiscard]] ehl::Result_t<T, sys_errc::ErrorCode, EHP> recv() noexcept(EHP != ehl::Policy::Exception)
@@ -231,9 +202,11 @@ private:
   template<SocketInfo, details::InvInfo, ConnectionSettings>
   friend struct Socket;
 
-  IncomingConnection(details::SocketHandle handle, Address<AF> addr) noexcept : m_handle_(handle), m_addr_(addr) {}
+  IncomingConnection(details::socket_resource&& handle, Address<AF> addr) noexcept :
+    m_handle_(std::forward<details::socket_resource>(handle)),
+    m_addr_(addr) {}
 
-  details::SocketHandle m_handle_;
+  details::socket_resource m_handle_;
   Address<AF> m_addr_;
 };
 
@@ -252,11 +225,11 @@ struct Socket
     //getting pointer by reinterpret_cast is not UB,
     //accessing through this pointer is UB, but access is done by implementation of accept,
     //implementation know that pointer is from cast and deals with it
-    details::SocketHandle r = ::accept(m_handle_, reinterpret_cast<sockaddr*>(&addr), &addrlen);
+    details::socket_resource r = ::accept(m_handle_, reinterpret_cast<sockaddr*>(&addr), &addrlen);
 
-    EHL_THROW_IF(r == details::invalid_socket, sys_errc::last_error());
+    EHL_THROW_IF(r.is_invalid(), sys_errc::last_error());
 
-    return IncomingConnection<SI.address_family, CS>(r, addr);
+    return IncomingConnection<SI.address_family, CS>(std::move(r), addr);
   }
 
   template<packet_type T, auto EHP = ehl::Policy::Exception>
@@ -339,39 +312,13 @@ struct Socket
     EHL_THROW_IF(r < sizeof(T), sys_errc::last_error());
   }
 
-  Socket(Socket&& s) : m_handle_(s.m_handle_)
-  {
-    s.m_handle_ = details::invalid_socket;
-  }
-
-  Socket(const Socket&) = delete;
-
-  Socket& operator=(Socket&& s)
-  {
-    m_handle_ = std::exchange(s.m_handle_, details::invalid_socket);
-    return *this;
-  }
-
-  Socket& operator=(const Socket&) = delete;
-
-  ~Socket()
-  {
-    if(m_handle_ != details::invalid_socket)
-    {
-    #if CPPS_WIN_IMPL
-      ::closesocket(m_handle_);
-    #elif CPPS_POSIX_IMPL
-      ::close(m_handle_);
-    #endif
-    }
-  }
-
 private:
   friend struct Net;
 
-  Socket(details::SocketHandle handle) noexcept : m_handle_(handle) {}
+  Socket(details::socket_resource&& handle) noexcept :
+    m_handle_(std::forward<details::socket_resource>(handle)) {}
 
-  details::SocketHandle m_handle_;
+  details::socket_resource m_handle_;
 };
 
 struct Net
@@ -410,11 +357,9 @@ struct Net
     constexpr int st = static_cast<int>(SI.type);
     constexpr int sp = static_cast<int>(SI.protocol);
 
-    auto sfd = ::socket(af, st, sp);
+    details::socket_resource sfd = ::socket(af, st, sp);
 
-    EHL_THROW_IF(sfd == details::invalid_socket, sys_errc::last_error());
-
-    Socket<SI, details::inv_connect, SCS> sock(sfd);
+    EHL_THROW_IF(sfd.is_invalid(), sys_errc::last_error());
 
     //getting pointer by reinterpret_cast is not UB,
     //accessing through this pointer is UB, but access is done by implementation of connect,
@@ -423,7 +368,7 @@ struct Net
 
     EHL_THROW_IF(r != 0, sys_errc::last_error());
 
-    return sock;
+    return Socket<SI, details::inv_connect, SCS>(std::move(sfd));
   }
 
   template<SocketInfo SI, ConnectionSettings SCS = default_connection_settings, auto EHP = ehl::Policy::Exception>
@@ -435,11 +380,9 @@ struct Net
     constexpr int st = static_cast<int>(SI.type);
     constexpr int sp = static_cast<int>(SI.protocol);
 
-    auto sfd = ::socket(af, st, sp);
+    details::socket_resource sfd = ::socket(af, st, sp);
 
-    EHL_THROW_IF(sfd == details::invalid_socket, sys_errc::last_error());
-
-    Socket<SI, details::inv_bind_connect, SCS> sock(sfd);
+    EHL_THROW_IF(sfd.is_invalid(), sys_errc::last_error());
 
     int r;
 
@@ -457,7 +400,7 @@ struct Net
 
     EHL_THROW_IF(r != 0, sys_errc::last_error());
 
-    return sock;
+    return Socket<SI, details::inv_bind_connect, SCS>(std::move(sfd));
   }
 
   template<SocketInfo SI, auto EHP = ehl::Policy::Exception>
@@ -469,11 +412,9 @@ struct Net
     constexpr int st = static_cast<int>(SI.type);
     constexpr int sp = static_cast<int>(SI.protocol);
 
-    auto sfd = ::socket(af, st, sp);
+    details::socket_resource sfd = ::socket(af, st, sp);
 
-    EHL_THROW_IF(sfd == details::invalid_socket, sys_errc::last_error());
-
-    Socket<SI, details::inv_bind, default_connection_settings> sock(sfd);
+    EHL_THROW_IF(sfd.is_invalid(), sys_errc::last_error());
 
     //getting pointer by reinterpret_cast is not UB,
     //accessing through this pointer is UB, but access is done by implementation of bind,
@@ -482,7 +423,7 @@ struct Net
 
     EHL_THROW_IF(r != 0, sys_errc::last_error());
 
-    return sock;
+    return Socket<SI, details::inv_bind, default_connection_settings>(std::move(sfd));
   }
 
   template<SocketInfo SI, auto EHP = ehl::Policy::Exception> requires (SI.type == SocketType::Stream)
@@ -494,11 +435,9 @@ struct Net
     constexpr int st = static_cast<int>(SI.type);
     constexpr int sp = static_cast<int>(SI.protocol);
 
-    auto sfd = ::socket(af, st, sp);
+    details::socket_resource sfd = ::socket(af, st, sp);
 
-    EHL_THROW_IF(sfd == details::invalid_socket, sys_errc::last_error());
-
-    Socket<SI, details::inv_bind_listen, default_connection_settings> sock(sfd);
+    EHL_THROW_IF(sfd.is_invalid(), sys_errc::last_error());
 
     int r;
 
@@ -513,7 +452,7 @@ struct Net
 
     EHL_THROW_IF(r != 0, sys_errc::last_error());
 
-    return sock;
+    return Socket<SI, details::inv_bind_listen, default_connection_settings>(std::move(sfd));
   }
 
 private:
