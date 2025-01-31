@@ -414,6 +414,8 @@ struct Net
 
     EHL_THROW_IF(sfd == details::invalid_socket, sys_errc::last_error());
 
+    Socket<SI, details::inv_connect, SCS> sock(sfd);
+
     //getting pointer by reinterpret_cast is not UB,
     //accessing through this pointer is UB, but access is done by implementation of connect,
     //implementation know that pointer is from cast and deals with it
@@ -421,7 +423,7 @@ struct Net
 
     EHL_THROW_IF(r != 0, sys_errc::last_error());
 
-    return Socket<SI, details::inv_connect, SCS>{sfd};
+    return sock;
   }
 
   template<SocketInfo SI, ConnectionSettings SCS = default_connection_settings, auto EHP = ehl::Policy::Exception>
@@ -436,6 +438,8 @@ struct Net
     auto sfd = ::socket(af, st, sp);
 
     EHL_THROW_IF(sfd == details::invalid_socket, sys_errc::last_error());
+
+    Socket<SI, details::inv_bind_connect, SCS> sock(sfd);
 
     int r;
 
@@ -453,7 +457,7 @@ struct Net
 
     EHL_THROW_IF(r != 0, sys_errc::last_error());
 
-    return Socket<SI, details::inv_bind_connect, SCS>{sfd};
+    return sock;
   }
 
   template<SocketInfo SI, auto EHP = ehl::Policy::Exception>
@@ -469,6 +473,8 @@ struct Net
 
     EHL_THROW_IF(sfd == details::invalid_socket, sys_errc::last_error());
 
+    Socket<SI, details::inv_bind, default_connection_settings> sock(sfd);
+
     //getting pointer by reinterpret_cast is not UB,
     //accessing through this pointer is UB, but access is done by implementation of bind,
     //implementation know that pointer is from cast and deals with it
@@ -476,7 +482,7 @@ struct Net
 
     EHL_THROW_IF(r != 0, sys_errc::last_error());
 
-    return Socket<SI, details::inv_bind, default_connection_settings>{sfd};
+    return sock;
   }
 
   template<SocketInfo SI, auto EHP = ehl::Policy::Exception> requires (SI.type == SocketType::Stream)
@@ -492,6 +498,8 @@ struct Net
 
     EHL_THROW_IF(sfd == details::invalid_socket, sys_errc::last_error());
 
+    Socket<SI, details::inv_bind_listen, default_connection_settings> sock(sfd);
+
     int r;
 
     //getting pointer by reinterpret_cast is not UB,
@@ -505,7 +513,7 @@ struct Net
 
     EHL_THROW_IF(r != 0, sys_errc::last_error());
 
-    return Socket<SI, details::inv_bind_listen, default_connection_settings>{sfd};
+    return sock;
   }
 
 private:
