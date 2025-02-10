@@ -23,189 +23,10 @@
 #endif
 
 #include <ehl/ehl.hpp>
-#include <system_errc/system_errc.hpp>
-#include <strict_enum/strict_enum.hpp>
-#include "details/convert_byte_order.hpp"
-#include "details/socket_resource.hpp"
-#include "is_packet.hpp"
-#include "address.hpp"
+#include "socket.hpp"
 
 namespace cpps
 {
-
-STRICT_ENUM(SocketType)
-(
-  Stream = SOCK_STREAM,
-  Datagram = SOCK_DGRAM,
-);
-
-STRICT_ENUM(SocketProtocol)
-(
-  TCP = IPPROTO_TCP,
-  UDP = IPPROTO_UDP,
-);
-
-struct SocketInfo
-{
-  AddressFamily  address_family;
-  SocketType     type;
-  SocketProtocol protocol;
-};
-
-constexpr SocketInfo SI_IPv4_TCP = { AddressFamily::IPv4, SocketType::Stream, SocketProtocol::TCP };
-constexpr SocketInfo SI_IPv6_TCP = { AddressFamily::IPv6, SocketType::Stream, SocketProtocol::TCP };
-constexpr SocketInfo SI_IPv4_UDP = { AddressFamily::IPv4, SocketType::Datagram, SocketProtocol::UDP };
-constexpr SocketInfo SI_IPv6_UDP = { AddressFamily::IPv6, SocketType::Datagram, SocketProtocol::UDP };
-
-struct ConnectionSettings
-{
-  bool convert_byte_order;
-};
-
-constexpr ConnectionSettings default_connection_settings = { .convert_byte_order = true };
-
-namespace details
-{
-
-using socklen_type = PP_IFE(CPPS_WIN_IMPL)(int)(socklen_t);
-
-struct InvInfo
-{
-  bool binded;
-  bool listening;
-  bool connected;
-};
-
-constexpr InvInfo inv_bind         = { .binded = true,  .listening = false, .connected = false };
-constexpr InvInfo inv_connect      = { .binded = false, .listening = false, .connected = true };
-constexpr InvInfo inv_bind_connect = { .binded = true,  .listening = false, .connected = true };
-constexpr InvInfo inv_bind_listen  = { .binded = true,  .listening = true,  .connected = false };
-
-} //namespace details
-
-template<SocketInfo SI, details::InvInfo INV, ConnectionSettings CS>
-struct Socket;
-
-template<SocketInfo SI, details::InvInfo INV, ConnectionSettings CS>
-struct IncomingConnection
-{
-  Socket<SI, INV, CS> sock;
-  Address<SI.address_family> addr;
-};
-
-template<SocketInfo SI, details::InvInfo INV, ConnectionSettings SCS>
-struct Socket
-{
-  static_assert(!(SI.type == SocketType::Stream && SI.protocol == SocketProtocol::UDP));
-  static_assert(!(SI.type == SocketType::Datagram && SI.protocol == SocketProtocol::TCP));
-
-  template<ConnectionSettings CS = default_connection_settings, auto EHP = ehl::Policy::Exception>
-  [[nodiscard]] ehl::Result_t<IncomingConnection<SI, details::inv_connect, CS>, sys_errc::ErrorCode, EHP> accept()
-    noexcept(EHP != ehl::Policy::Exception) requires (SI.type == SocketType::Stream && INV.binded && INV.listening)
-  {
-    details::sockaddr_type<SI.address_family> addr;
-    details::socklen_type addrlen = sizeof(addr);
-    //getting pointer by reinterpret_cast is not UB,
-    //accessing through this pointer is UB, but access is done by implementation of accept,
-    //implementation know that pointer is from cast and deals with it
-    details::socket_resource r = ::accept(m_handle_, reinterpret_cast<sockaddr*>(&addr), &addrlen);
-
-    EHL_THROW_IF(r.is_invalid(), sys_errc::last_error());
-
-    return IncomingConnection<SI, details::inv_connect, CS>(std::move(r), std::bit_cast<Address<SI.address_family>>(addr));
-  }
-
-  template<packet_type T, auto EHP = ehl::Policy::Exception>
-    requires (std::is_trivially_copyable_v<T> && std::has_unique_object_representations_v<T> && INV.connected)
-  [[nodiscard]] ehl::Result_t<T, sys_errc::ErrorCode, EHP> recv() noexcept(EHP != ehl::Policy::Exception)
-  {
-    T t;
-    auto r = ::recv(m_handle_, reinterpret_cast<char*>(&t), sizeof(T), 0);
-
-    EHL_THROW_IF(r < sizeof(T), sys_errc::last_error());
-
-    if constexpr(SCS.convert_byte_order)
-      details::convert_byte_order(t);
-
-    return t;
-  }
-
-  template<packet_type T, auto EHP = ehl::Policy::Exception>
-    requires (std::is_trivially_copyable_v<T> && std::has_unique_object_representations_v<T> && INV.connected)
-  [[nodiscard]] ehl::Result_t<void, sys_errc::ErrorCode, EHP> send(const T& t) noexcept(EHP != ehl::Policy::Exception)
-  {
-    T t_copy = t;
-
-    if constexpr(SCS.convert_byte_order)
-      details::convert_byte_order(t_copy);
-
-    auto r = ::send(m_handle_, reinterpret_cast<const char*>(&t_copy), sizeof(T), 0);
-
-    EHL_THROW_IF(r < sizeof(T), sys_errc::last_error());
-  }
-
-  template<typename T>
-  struct recvfrom_result
-  {
-    T value;
-    Address<SI.address_family> addr;
-  };
-
-  template<packet_type T, ConnectionSettings CS = default_connection_settings, auto EHP = ehl::Policy::Exception>
-    requires (std::is_trivially_copyable_v<T> &&
-              std::has_unique_object_representations_v<T> &&
-              SI.type == SocketType::Datagram &&
-              INV.binded)
-  [[nodiscard]] ehl::Result_t<recvfrom_result<T>, sys_errc::ErrorCode, EHP> recvfrom()
-    noexcept(EHP != ehl::Policy::Exception)
-  {
-    recvfrom_result<T> result;
-    details::socklen_type addrlen = sizeof(result.addr);
-    //getting pointer by reinterpret_cast is not UB,
-    //accessing through this pointer is UB, but access is done by implementation of recvfrom,
-    //implementation know that pointer is from cast and deals with it
-    auto r = ::recvfrom(
-      m_handle_, reinterpret_cast<char*>(&result.value), sizeof(T), 0, reinterpret_cast<sockaddr*>(&result.addr), &addrlen);
-
-    EHL_THROW_IF(r < sizeof(T), sys_errc::last_error());
-
-    if constexpr(CS.convert_byte_order)
-      details::convert_byte_order(result.value);
-
-    return result;
-  }
-
-  template<packet_type T, ConnectionSettings CS = default_connection_settings, auto EHP = ehl::Policy::Exception>
-    requires (std::is_trivially_copyable_v<T> && std::has_unique_object_representations_v<T> && SI.type == SocketType::Datagram)
-  [[nodiscard]] ehl::Result_t<void, sys_errc::ErrorCode, EHP> sendto(const T& t, const Address<SI.address_family>& addr)
-    noexcept(EHP != ehl::Policy::Exception)
-  {
-    T t_copy = t;
-
-    if constexpr(CS.convert_byte_order)
-      details::convert_byte_order(t_copy);
-
-    details::socklen_type addrlen = sizeof(addr);
-    //getting pointer by reinterpret_cast is not UB,
-    //accessing through this pointer is UB, but access is done by implementation of recvfrom,
-    //implementation know that pointer is from cast and deals with it
-    auto r = ::sendto(
-      m_handle_, reinterpret_cast<const char*>(&t_copy), sizeof(T), 0, reinterpret_cast<const sockaddr*>(&addr), addrlen);
-
-    EHL_THROW_IF(r < sizeof(T), sys_errc::last_error());
-  }
-
-private:
-  friend struct Net;
-
-  template<SocketInfo, details::InvInfo, ConnectionSettings>
-  friend struct Socket;
-
-  Socket(details::socket_resource&& handle) noexcept :
-    m_handle_(std::forward<details::socket_resource>(handle)) {}
-
-  details::socket_resource m_handle_;
-};
 
 struct Net
 {
@@ -236,7 +57,7 @@ struct Net
 #endif
 
   template<SocketInfo SI, ConnectionSettings SCS = default_connection_settings, auto EHP = ehl::Policy::Exception>
-  [[nodiscard]] ehl::Result_t<Socket<SI, details::inv_connect, SCS>, sys_errc::ErrorCode, EHP>
+  [[nodiscard]] ehl::Result_t<Socket<SI, inv_connect, SCS>, sys_errc::ErrorCode, EHP>
   client_socket(const Address<SI.address_family>& dest_addr) const noexcept(EHP != ehl::Policy::Exception)
   {
     constexpr int af = static_cast<int>(SI.address_family);
@@ -254,11 +75,11 @@ struct Net
 
     EHL_THROW_IF(r != 0, sys_errc::last_error());
 
-    return Socket<SI, details::inv_connect, SCS>(std::move(sfd));
+    return Socket<SI, inv_connect, SCS>(std::move(sfd));
   }
 
   template<SocketInfo SI, ConnectionSettings SCS = default_connection_settings, auto EHP = ehl::Policy::Exception>
-  [[nodiscard]] ehl::Result_t<Socket<SI, details::inv_bind_connect, SCS>, sys_errc::ErrorCode, EHP>
+  [[nodiscard]] ehl::Result_t<Socket<SI, inv_bind_connect, SCS>, sys_errc::ErrorCode, EHP>
   client_socket(const Address<SI.address_family>& bind_addr, const Address<SI.address_family>& dest_addr)
     const noexcept(EHP != ehl::Policy::Exception)
   {
@@ -286,11 +107,11 @@ struct Net
 
     EHL_THROW_IF(r != 0, sys_errc::last_error());
 
-    return Socket<SI, details::inv_bind_connect, SCS>(std::move(sfd));
+    return Socket<SI, inv_bind_connect, SCS>(std::move(sfd));
   }
 
   template<SocketInfo SI, auto EHP = ehl::Policy::Exception>
-  [[nodiscard]] ehl::Result_t<Socket<SI, details::inv_bind, default_connection_settings>, sys_errc::ErrorCode, EHP>
+  [[nodiscard]] ehl::Result_t<Socket<SI, inv_bind, default_connection_settings>, sys_errc::ErrorCode, EHP>
   server_socket(const Address<SI.address_family>& bind_addr)
     const noexcept(EHP != ehl::Policy::Exception)
   {
@@ -309,11 +130,11 @@ struct Net
 
     EHL_THROW_IF(r != 0, sys_errc::last_error());
 
-    return Socket<SI, details::inv_bind, default_connection_settings>(std::move(sfd));
+    return Socket<SI, inv_bind, default_connection_settings>(std::move(sfd));
   }
 
   template<SocketInfo SI, auto EHP = ehl::Policy::Exception> requires (SI.type == SocketType::Stream)
-  [[nodiscard]] ehl::Result_t<Socket<SI, details::inv_bind_listen, default_connection_settings>, sys_errc::ErrorCode, EHP>
+  [[nodiscard]] ehl::Result_t<Socket<SI, inv_bind_listen, default_connection_settings>, sys_errc::ErrorCode, EHP>
   server_socket(const Address<SI.address_family>& bind_addr, unsigned max_connections)
     const noexcept(EHP != ehl::Policy::Exception)
   {
@@ -338,7 +159,7 @@ struct Net
 
     EHL_THROW_IF(r != 0, sys_errc::last_error());
 
-    return Socket<SI, details::inv_bind_listen, default_connection_settings>(std::move(sfd));
+    return Socket<SI, inv_bind_listen, default_connection_settings>(std::move(sfd));
   }
 
 private:
