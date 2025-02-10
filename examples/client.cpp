@@ -15,8 +15,7 @@ int main() try
 {
   auto net = cpps::Net::make();
 
-  constexpr auto addr = cpps::Address<cpps::AddressFamily::IPv4>::make_cx("127.0.0.1", 6969);
-  auto sock = net.client_socket<cpps::SI_IPv4_TCP>(addr);
+  auto sock = net.client_socket<cpps::SI_IPv4_TCP>(cpps::AddressIPv4("127.0.0.1", 6969));
 
   Packet p{{1, 2, 3, 4}};
   sock.send(p);

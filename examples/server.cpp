@@ -16,8 +16,7 @@ int main() try
   constexpr auto EHP = ehl::Policy::Exception;
   auto net = cpps::Net::make<EHP>();
 
-  constexpr auto addr = cpps::Address<cpps::AddressFamily::IPv4>::make_cx<EHP>("127.0.0.1", 6969);
-  auto sock = net.server_socket<cpps::SI_IPv4_TCP, EHP>(addr, 10);
+  auto sock = net.server_socket<cpps::SI_IPv4_TCP, EHP>(cpps::AddressIPv4("127.0.0.1", 6969), 10);
 
   auto [conn, conn_addr] = sock.accept<cpps::default_connection_settings, EHP>();
 

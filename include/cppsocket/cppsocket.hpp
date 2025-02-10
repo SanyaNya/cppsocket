@@ -25,19 +25,13 @@
 #include <ehl/ehl.hpp>
 #include <system_errc/system_errc.hpp>
 #include <strict_enum/strict_enum.hpp>
-#include "details/ct_ip.hpp"
 #include "details/convert_byte_order.hpp"
 #include "details/socket_resource.hpp"
 #include "is_packet.hpp"
+#include "address.hpp"
 
 namespace cpps
 {
-
-STRICT_ENUM(AddressFamily)
-(
-  IPv4 = AF_INET,
-  IPv6 = AF_INET6,
-);
 
 STRICT_ENUM(SocketType)
 (
@@ -49,11 +43,6 @@ STRICT_ENUM(SocketProtocol)
 (
   TCP = IPPROTO_TCP,
   UDP = IPPROTO_UDP,
-);
-
-STRICT_ENUM(AddressError)
-(
-  Invalid
 );
 
 struct SocketInfo
@@ -94,78 +83,6 @@ constexpr InvInfo inv_bind_listen  = { .binded = true,  .listening = true,  .con
 
 } //namespace details
 
-using port_t = PP_IFE(CPPS_WIN_IMPL)(USHORT)(in_port_t);
-
-template<AddressFamily AF>
-class Address
-{
-  template<SocketInfo, details::InvInfo, ConnectionSettings>
-  friend struct Socket;
-
-  using sockaddr_type = std::conditional_t<AF == AddressFamily::IPv4, sockaddr_in, sockaddr_in6>;
-
-  sockaddr_type m_saddr_;
-
-  constexpr Address() noexcept = default;
-  constexpr Address(sockaddr_type saddr) noexcept : m_saddr_(saddr) {}
-
-public:
-  template<auto EHP = ehl::Policy::Exception, std::size_t N>
-  [[nodiscard]] static consteval ehl::Result_t<Address, AddressError, EHP> make_cx(const char (&addr)[N], port_t port)
-    noexcept
-  {
-    sockaddr_type saddr{};
-
-    if constexpr(std::endian::native == std::endian::little)
-      port = std::byteswap(port);
-
-    if constexpr(AF == AddressFamily::IPv4)
-    {
-      saddr.sin_family = AF_INET;
-      saddr.sin_port = port;
-      saddr.sin_addr = details::ct_inet_pton<AF_INET>(addr);
-    }
-
-    if constexpr(AF == AddressFamily::IPv6)
-    {
-      saddr.sin6_family = AF_INET6;
-      saddr.sin6_port = port;
-      saddr.sin6_addr = details::ct_inet_pton<AF_INET6>(addr);
-    }
-
-    return Address(saddr);
-  }
-
-  template<auto EHP = ehl::Policy::Exception>
-  [[nodiscard]] static ehl::Result_t<Address, AddressError, EHP> make(const char* addr, port_t port)
-    noexcept(EHP != ehl::Policy::Exception)
-  {
-    sockaddr_type saddr{};
-    int r = 0;
-
-    if constexpr(std::endian::native == std::endian::little)
-      port = std::byteswap(port);
-
-    if constexpr(AF == AddressFamily::IPv4)
-    {
-      saddr.sin_family = AF_INET;
-      saddr.sin_port = port;
-      r = inet_pton(AF_INET, addr, &saddr.sin_addr);
-    }
-
-    if constexpr(AF == AddressFamily::IPv6)
-    {
-      saddr.sin6_family = AF_INET6;
-      saddr.sin6_port = port;
-      r = inet_pton(AF_INET6, addr, &saddr.sin6_addr);
-    }
-
-    EHL_THROW_IF(r == 0, AddressError(AddressError::Invalid));
-
-    return Address(saddr);
-  }
-};
-
 template<SocketInfo SI, details::InvInfo INV, ConnectionSettings CS>
 struct Socket;
 
@@ -186,7 +103,7 @@ struct Socket
   [[nodiscard]] ehl::Result_t<IncomingConnection<SI, details::inv_connect, CS>, sys_errc::ErrorCode, EHP> accept()
     noexcept(EHP != ehl::Policy::Exception) requires (SI.type == SocketType::Stream && INV.binded && INV.listening)
   {
-    Address<SI.address_family> addr;
+    details::sockaddr_type<SI.address_family> addr;
     details::socklen_type addrlen = sizeof(addr);
     //getting pointer by reinterpret_cast is not UB,
     //accessing through this pointer is UB, but access is done by implementation of accept,
@@ -195,7 +112,7 @@ struct Socket
 
     EHL_THROW_IF(r.is_invalid(), sys_errc::last_error());
 
-    return IncomingConnection<SI, details::inv_connect, CS>(std::move(r), addr);
+    return IncomingConnection<SI, details::inv_connect, CS>(std::move(r), std::bit_cast<Address<SI.address_family>>(addr));
   }
 
   template<packet_type T, auto EHP = ehl::Policy::Exception>
