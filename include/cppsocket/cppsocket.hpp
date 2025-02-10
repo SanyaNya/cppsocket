@@ -60,11 +60,7 @@ struct Net
   [[nodiscard]] ehl::Result_t<Socket<SI, inv_connect, SCS>, sys_errc::ErrorCode, EHP>
   client_socket(const Address<SI.address_family>& dest_addr) const noexcept(EHP != ehl::Policy::Exception)
   {
-    constexpr int af = static_cast<int>(SI.address_family);
-    constexpr int st = static_cast<int>(SI.type);
-    constexpr int sp = static_cast<int>(SI.protocol);
-
-    details::socket_resource sfd = ::socket(af, st, sp);
+    details::socket_resource sfd = ::socket((int)SI.address_family, (int)SI.type, (int)SI.protocol);
 
     EHL_THROW_IF(sfd.is_invalid(), sys_errc::last_error());
 
@@ -83,11 +79,7 @@ struct Net
   client_socket(const Address<SI.address_family>& bind_addr, const Address<SI.address_family>& dest_addr)
     const noexcept(EHP != ehl::Policy::Exception)
   {
-    constexpr int af = static_cast<int>(SI.address_family);
-    constexpr int st = static_cast<int>(SI.type);
-    constexpr int sp = static_cast<int>(SI.protocol);
-
-    details::socket_resource sfd = ::socket(af, st, sp);
+    details::socket_resource sfd = ::socket((int)SI.address_family, (int)SI.type, (int)SI.protocol);
 
     EHL_THROW_IF(sfd.is_invalid(), sys_errc::last_error());
 
@@ -115,11 +107,7 @@ struct Net
   server_socket(const Address<SI.address_family>& bind_addr)
     const noexcept(EHP != ehl::Policy::Exception)
   {
-    constexpr int af = static_cast<int>(SI.address_family);
-    constexpr int st = static_cast<int>(SI.type);
-    constexpr int sp = static_cast<int>(SI.protocol);
-
-    details::socket_resource sfd = ::socket(af, st, sp);
+    details::socket_resource sfd = ::socket((int)SI.address_family, (int)SI.type, (int)SI.protocol);
 
     EHL_THROW_IF(sfd.is_invalid(), sys_errc::last_error());
 
@@ -138,11 +126,7 @@ struct Net
   server_socket(const Address<SI.address_family>& bind_addr, unsigned max_connections)
     const noexcept(EHP != ehl::Policy::Exception)
   {
-    constexpr int af = static_cast<int>(SI.address_family);
-    constexpr int st = static_cast<int>(SI.type);
-    constexpr int sp = static_cast<int>(SI.protocol);
-
-    details::socket_resource sfd = ::socket(af, st, sp);
+    details::socket_resource sfd = ::socket((int)SI.address_family, (int)SI.type, (int)SI.protocol);
 
     EHL_THROW_IF(sfd.is_invalid(), sys_errc::last_error());
 
