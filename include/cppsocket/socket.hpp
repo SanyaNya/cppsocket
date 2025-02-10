@@ -160,7 +160,7 @@ public:
   };
 
   template<packet_type T, ConnectionSettings CS = default_connection_settings, auto EHP = ehl::Policy::Exception>
-    requires (SI.type == SocketType::Datagram && INV.binded)
+    requires (SI.type == SocketType::Datagram)
   [[nodiscard]] ehl::Result_t<recvfrom_result<T>, sys_errc::ErrorCode, EHP> recvfrom()
     noexcept(EHP != ehl::Policy::Exception)
   {
