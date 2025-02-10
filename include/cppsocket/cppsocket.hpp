@@ -166,48 +166,14 @@ public:
   }
 };
 
-template<AddressFamily AF, ConnectionSettings CS>
+template<SocketInfo SI, details::InvInfo INV, ConnectionSettings CS>
+struct Socket;
+
+template<SocketInfo SI, details::InvInfo INV, ConnectionSettings CS>
 struct IncomingConnection
 {
-  template<packet_type T, auto EHP = ehl::Policy::Exception>
-    requires (std::is_trivially_copyable_v<T> && std::has_unique_object_representations_v<T>)
-  [[nodiscard]] ehl::Result_t<T, sys_errc::ErrorCode, EHP> recv() noexcept(EHP != ehl::Policy::Exception)
-  {
-    T t;
-    auto r = ::recv(m_handle_, reinterpret_cast<char*>(&t), sizeof(T), 0);
-
-    EHL_THROW_IF(r < sizeof(T), sys_errc::last_error());
-
-    if constexpr(CS.convert_byte_order)
-      details::convert_byte_order(t);
-
-    return t;
-  }
-
-  template<packet_type T, auto EHP = ehl::Policy::Exception>
-    requires (std::is_trivially_copyable_v<T> && std::has_unique_object_representations_v<T>)
-  [[nodiscard]] ehl::Result_t<void, sys_errc::ErrorCode, EHP> send(const T& t) noexcept(EHP != ehl::Policy::Exception)
-  {
-    T t_copy = t;
-
-    if constexpr(CS.convert_byte_order)
-      details::convert_byte_order(t_copy);
-
-    auto r = ::send(m_handle_, reinterpret_cast<const char*>(&t_copy), sizeof(T), 0);
-
-    EHL_THROW_IF(r < sizeof(T), sys_errc::last_error());
-  }
-
-private:
-  template<SocketInfo, details::InvInfo, ConnectionSettings>
-  friend struct Socket;
-
-  IncomingConnection(details::socket_resource&& handle, Address<AF> addr) noexcept :
-    m_handle_(std::forward<details::socket_resource>(handle)),
-    m_addr_(addr) {}
-
-  details::socket_resource m_handle_;
-  Address<AF> m_addr_;
+  Socket<SI, INV, CS> sock;
+  Address<SI.address_family> addr;
 };
 
 template<SocketInfo SI, details::InvInfo INV, ConnectionSettings SCS>
@@ -217,7 +183,7 @@ struct Socket
   static_assert(!(SI.type == SocketType::Datagram && SI.protocol == SocketProtocol::TCP));
 
   template<ConnectionSettings CS = default_connection_settings, auto EHP = ehl::Policy::Exception>
-  [[nodiscard]] ehl::Result_t<IncomingConnection<SI.address_family, CS>, sys_errc::ErrorCode, EHP> accept()
+  [[nodiscard]] ehl::Result_t<IncomingConnection<SI, details::inv_connect, CS>, sys_errc::ErrorCode, EHP> accept()
     noexcept(EHP != ehl::Policy::Exception) requires (SI.type == SocketType::Stream && INV.binded && INV.listening)
   {
     Address<SI.address_family> addr;
@@ -229,7 +195,7 @@ struct Socket
 
     EHL_THROW_IF(r.is_invalid(), sys_errc::last_error());
 
-    return IncomingConnection<SI.address_family, CS>(std::move(r), addr);
+    return IncomingConnection<SI, details::inv_connect, CS>(std::move(r), addr);
   }
 
   template<packet_type T, auto EHP = ehl::Policy::Exception>
@@ -314,6 +280,9 @@ struct Socket
 
 private:
   friend struct Net;
+
+  template<SocketInfo, details::InvInfo, ConnectionSettings>
+  friend struct Socket;
 
   Socket(details::socket_resource&& handle) noexcept :
     m_handle_(std::forward<details::socket_resource>(handle)) {}
