@@ -102,10 +102,10 @@ class Socket
   Socket(details::socket_resource&& handle) noexcept :
     m_handle_(std::forward<details::socket_resource>(handle)) {}
 
-  template<packet_type T>
+  template<ConnectionSettings CS, packet_type T>
   static constexpr T convert_byte_order(T t) noexcept
   {
-    if constexpr(SCS.convert_byte_order)
+    if constexpr(CS.convert_byte_order)
       details::convert_byte_order(t);
 
     return t;
@@ -140,13 +140,13 @@ public:
 
     EHL_THROW_IF(r < sizeof(T), sys_errc::last_error());
 
-    return convert_byte_order(t);
+    return convert_byte_order<SCS>(t);
   }
 
   template<packet_type T, auto EHP = ehl::Policy::Exception> requires (INV.connected)
   [[nodiscard]] ehl::Result_t<void, sys_errc::ErrorCode, EHP> send(const T& t) noexcept(EHP != ehl::Policy::Exception)
   {
-    T t_copy = convert_byte_order(t);
+    T t_copy = convert_byte_order<SCS>(t);
 
     auto r = ::send(m_handle_, reinterpret_cast<const char*>(&t_copy), sizeof(T), 0);
 
@@ -176,7 +176,7 @@ public:
 
     EHL_THROW_IF(r < sizeof(T), sys_errc::last_error());
 
-    return {convert_byte_order(t), std::bit_cast<cpps::Address<SI.address_family>>(addr)};
+    return {convert_byte_order<CS>(t), std::bit_cast<cpps::Address<SI.address_family>>(addr)};
   }
 
   template<packet_type T, ConnectionSettings CS = default_connection_settings, auto EHP = ehl::Policy::Exception>
@@ -184,7 +184,7 @@ public:
   [[nodiscard]] ehl::Result_t<void, sys_errc::ErrorCode, EHP> sendto(const T& t, const Address<SI.address_family>& addr)
     noexcept(EHP != ehl::Policy::Exception)
   {
-    T t_copy = convert_byte_order(t);
+    T t_copy = convert_byte_order<CS>(t);
 
     details::socklen_type addrlen = sizeof(addr);
     //getting pointer by reinterpret_cast is not UB,
