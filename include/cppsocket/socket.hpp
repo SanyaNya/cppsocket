@@ -56,6 +56,7 @@ struct InvInfo
   bool connected;
 };
 
+constexpr InvInfo inv_none         = { .binded = false, .listening = false, .connected = false };
 constexpr InvInfo inv_bind         = { .binded = true,  .listening = false, .connected = false };
 constexpr InvInfo inv_connect      = { .binded = false, .listening = false, .connected = true };
 constexpr InvInfo inv_bind_connect = { .binded = true,  .listening = false, .connected = true };
