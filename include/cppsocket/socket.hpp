@@ -13,8 +13,11 @@
   #include <arpa/inet.h>
   #include <netdb.h>
   #include <unistd.h>
+  #include <poll.h>
 #endif
 
+#include <utility>
+#include <ehl/ehl.hpp>
 #include <system_errc/system_errc.hpp>
 #include <strict_enum/strict_enum.hpp>
 #include "details/convert_byte_order.hpp"
@@ -36,6 +39,12 @@ STRICT_ENUM(SocketProtocol)
   TCP = IPPROTO_TCP,
   UDP = IPPROTO_UDP,
 );
+
+enum class PollFlags
+{
+  In  = POLLIN,
+  Out = POLLOUT
+};
 
 struct SocketInfo
 {
@@ -194,6 +203,23 @@ public:
       m_handle_, reinterpret_cast<const char*>(&t_copy), sizeof(T), 0, reinterpret_cast<const sockaddr*>(&addr), addrlen);
 
     EHL_THROW_IF(r < sizeof(T), sys_errc::last_error());
+  }
+
+  template<PollFlags PF, auto EHP = ehl::Policy::Exception>
+  [[nodiscard]] ehl::Result_t<bool, sys_errc::ErrorCode, EHP> poll(int timeout_ms) noexcept(EHP != ehl::Policy::Exception)
+  {
+    pollfd fd{ .fd = m_handle_, .events = std::to_underlying(PF) };
+    auto r = PP_IFE(CPPS_WIN_IMPL)(::WSAPoll)(::poll)(&fd, 1, timeout_ms);
+
+    EHL_THROW_IF(r == PP_IFE(CPPS_WIN_IMPL)(SOCKET_ERROR)(-1), sys_errc::last_error());
+
+    return static_cast<bool>(r);
+  }
+
+  template<PollFlags PF, auto EHP = ehl::Policy::Exception>
+  [[nodiscard]] ehl::Result_t<void, sys_errc::ErrorCode, EHP> poll() noexcept(EHP != ehl::Policy::Exception)
+  {
+    [[maybe_unused]] bool r = poll<PF, EHP>(-1);
   }
 };
 
