@@ -14,7 +14,7 @@ option(BUILD_EXAMPLES "Build examples" OFF)
 include(Fetch)
 
 fetch_project(ehl https://github.com/SanyaNya/ehl v1.1.1)
-fetch_project(system_errc https://github.com/SanyaNya/system_errc v0.3.0)
+fetch_project(system_errc https://github.com/SanyaNya/system_errc v0.4.0)
 fetch_project(strict_enum https://github.com/SanyaNya/strict_enum v1.5.0)
 fetch_project(aggr_refl https://github.com/SanyaNya/aggr_refl v1.2.0)
 
