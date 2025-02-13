@@ -13,13 +13,14 @@ option(BUILD_EXAMPLES "Build examples" OFF)
 
 include(Fetch)
 
+fetch_project(hpp https://github.com/SanyaNya/hpp v1.2.0)
 fetch_project(ehl https://github.com/SanyaNya/ehl v1.1.1)
-fetch_project(system_errc https://github.com/SanyaNya/system_errc v0.4.0)
+fetch_project(system_errc https://github.com/SanyaNya/system_errc v0.5.1)
 fetch_project(strict_enum https://github.com/SanyaNya/strict_enum v1.5.0)
 fetch_project(aggr_refl https://github.com/SanyaNya/aggr_refl v1.2.0)
 
 add_library(cppsocket INTERFACE)
-target_link_libraries(cppsocket INTERFACE ehl system_errc strict_enum aggr_refl)
+target_link_libraries(cppsocket INTERFACE hpp ehl system_errc strict_enum aggr_refl)
 target_include_directories(cppsocket INTERFACE ${cppsocket_SOURCE_DIR}/include)
 
 if(BUILD_EXAMPLES)

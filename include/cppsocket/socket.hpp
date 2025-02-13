@@ -1,13 +1,13 @@
 #pragma once
 
-#include "details/helper_macros.hpp"
+#include <hpp/define.hpp>
 
-#if CPPS_WIN_IMPL
+#if HPP_WIN_IMPL
   #include <windows.h>
   #include <winsock2.h>
   #include <ws2tcpip.h>
   #include <iphlpapi.h>
-#elif CPPS_POSIX_IMPL
+#elif HPP_POSIX_IMPL
   #include <sys/types.h>
   #include <sys/socket.h>
   #include <arpa/inet.h>
@@ -81,7 +81,7 @@ constexpr ConnectionSettings default_connection_settings = { .convert_byte_order
 namespace details
 {
 
-using socklen_type = PP_IFE(CPPS_WIN_IMPL)(int)(socklen_t);
+using socklen_type = HPP_IFE(HPP_WIN_IMPL)(int)(socklen_t);
 
 } //namespace details
 
@@ -209,9 +209,9 @@ public:
   [[nodiscard]] ehl::Result_t<bool, sys_errc::ErrorCode, EHP> poll(int timeout_ms) noexcept(EHP != ehl::Policy::Exception)
   {
     pollfd fd{ .fd = m_handle_, .events = std::to_underlying(PF) };
-    auto r = PP_IFE(CPPS_WIN_IMPL)(::WSAPoll)(::poll)(&fd, 1, timeout_ms);
+    auto r = HPP_IFE(HPP_WIN_IMPL)(::WSAPoll)(::poll)(&fd, 1, timeout_ms);
 
-    EHL_THROW_IF(r == PP_IFE(CPPS_WIN_IMPL)(SOCKET_ERROR)(-1), sys_errc::last_error());
+    EHL_THROW_IF(r == HPP_IFE(HPP_WIN_IMPL)(SOCKET_ERROR)(-1), sys_errc::last_error());
 
     return static_cast<bool>(r);
   }

@@ -3,18 +3,18 @@
 #ifndef IPADDR_H_
 #define IPADDR_H_
 
+#include <hpp/define.hpp>
+
+#if HPP_WIN_IMPL
+  #include <ws2tcpip.h>
+#elif HPP_POSIX_IMPL
+  #include <arpa/inet.h>
+#endif
+
 #include <array>
 #include <cstdint>
 #include <bit>
 #include <concepts>
-
-#include "helper_macros.hpp"
-
-#if CPPS_WIN_IMPL
-  #include <ws2tcpip.h>
-#elif CPPS_POSIX_IMPL
-  #include <arpa/inet.h>
-#endif
 
 namespace cpps::details
 {

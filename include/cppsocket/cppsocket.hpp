@@ -1,9 +1,9 @@
 #pragma once
 
-#include "details/helper_macros.hpp"
+#include <hpp/define.hpp>
 
 //Include platform specific headers
-#if CPPS_WIN_IMPL
+#if HPP_WIN_IMPL
   #ifndef WIN32_LEAN_AND_MEAN
     #define WIN32_LEAN_AND_MEAN
   #endif
@@ -14,7 +14,7 @@
   #include <iphlpapi.h>
 
   #pragma comment(lib, "Ws2_32.lib")
-#elif CPPS_POSIX_IMPL
+#elif HPP_POSIX_IMPL
   #include <sys/types.h>
   #include <sys/socket.h>
   #include <arpa/inet.h>
@@ -32,10 +32,10 @@ struct Net
 {
   template<auto EHP = ehl::Policy::Exception>
   [[nodiscard]]
-  static PP_IF(CPPS_POSIX_IMPL)(constexpr) ehl::Result_t<Net, sys_errc::ErrorCode, EHP> make()
-    noexcept(EHP != ehl::Policy::Exception || CPPS_POSIX_IMPL)
+  static HPP_IF(HPP_POSIX_IMPL)(constexpr) ehl::Result_t<Net, sys_errc::ErrorCode, EHP> make()
+    noexcept(EHP != ehl::Policy::Exception || HPP_POSIX_IMPL)
   {
-#if CPPS_WIN_IMPL
+#if HPP_WIN_IMPL
     WSAData wsaData;
     int r = WSAStartup(MAKEWORD(2, 2), &wsaData);
 
@@ -45,7 +45,7 @@ struct Net
     return Net{};
   }
 
-#if CPPS_WIN_IMPL
+#if HPP_WIN_IMPL
   ~Net()
   {
     WSACleanup();
@@ -162,6 +162,3 @@ private:
 };
 
 } //namespace cpps
-
-#undef CPPS_WIN_IMPL
-#undef CPPS_POSIX_IMPL

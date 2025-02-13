@@ -1,10 +1,10 @@
 #pragma once
 
-#include "details/helper_macros.hpp"
+#include <hpp/define.hpp>
 
-#if CPPS_WIN_IMPL
+#if HPP_WIN_IMPL
   #include <winsock2.h>
-#elif CPPS_POSIX_IMPL
+#elif HPP_POSIX_IMPL
   #include <sys/socket.h>
 #endif
 
@@ -34,7 +34,7 @@ using sockaddr_type = std::conditional_t<AF == AddressFamily::IPv4, sockaddr_in,
 
 } //namespace details
 
-using port_t = PP_IFE(CPPS_WIN_IMPL)(USHORT)(in_port_t);
+using port_t = HPP_IFE(HPP_WIN_IMPL)(USHORT)(in_port_t);
 
 template<AddressFamily AF>
 class Address

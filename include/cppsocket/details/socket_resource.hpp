@@ -1,15 +1,16 @@
 #pragma once
 
-#include <type_traits>
-#include <utility>
-#include "helper_macros.hpp"
+#include <hpp/define.hpp>
 
-#if CPPS_WIN_IMPL
+#if HPP_WIN_IMPL
   #include <winsock2.h>
-#elif CPPS_POSIX_IMPL
+#elif HPP_POSIX_IMPL
   #include <sys/socket.h>
   #include <unistd.h>
 #endif
+
+#include <type_traits>
+#include <utility>
 
 namespace cpps::details
 {
@@ -18,7 +19,7 @@ struct socket_resource
 {
   using Handle = std::invoke_result_t<decltype(::socket), int, int, int>;
 
-  static constexpr auto INVALID_HANDLE = PP_IFE(CPPS_WIN_IMPL)(INVALID_SOCKET)(-1);
+  static constexpr auto INVALID_HANDLE = HPP_IFE(HPP_WIN_IMPL)(INVALID_SOCKET)(-1);
 
   socket_resource(Handle handle) noexcept : m_handle_(handle) {}
 
@@ -55,9 +56,9 @@ private:
   {
     if(h != INVALID_HANDLE)
     {
-    #if CPPS_WIN_IMPL
+    #if HPP_WIN_IMPL
       ::closesocket(h);
-    #elif CPPS_POSIX_IMPL
+    #elif HPP_POSIX_IMPL
       ::close(h);
     #endif
     }
