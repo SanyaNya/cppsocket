@@ -8,6 +8,7 @@
   #include <sys/socket.h>
 #endif
 
+#include <bit>
 #include <strict_enum/strict_enum.hpp>
 #include <ehl/ehl.hpp>
 #include "details/ct_ip.hpp"
@@ -42,6 +43,13 @@ class Address
   details::sockaddr_type<AF> m_saddr_;
 
   constexpr Address(details::sockaddr_type<AF> saddr) noexcept : m_saddr_(saddr) {}
+
+  struct uint64_pair
+  {
+    std::uint64_t first, second;
+
+    constexpr bool operator==(const uint64_pair&) const noexcept = default;
+  };
 
 public:
   template<std::size_t N>
@@ -92,6 +100,21 @@ public:
     EHL_THROW_IF(r == 0, AddressError(AddressError::Invalid));
 
     return Address(saddr);
+  }
+
+  constexpr bool operator==(const Address& addr) const noexcept
+  {
+    if constexpr(AF == AddressFamily::IPv4)
+      return m_saddr_.sin_port == addr.m_saddr_.sin_port &&
+             std::bit_cast<std::uint32_t>(m_saddr_.sin_addr) == std::bit_cast<std::uint32_t>(addr.m_saddr_.sin_addr);
+
+    if constexpr(AF == AddressFamily::IPv6)
+      return m_saddr_.sin6_port == addr.m_saddr_.sin6_port &&
+             std::bit_cast<uint64_pair>(m_saddr_.sin6_addr) == std::bit_cast<uint64_pair>(addr.m_saddr_.sin6_addr);
+  }
+  constexpr bool operator!=(const Address& addr) const noexcept
+  {
+    return !this->operator==(addr);
   }
 };
 
