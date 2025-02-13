@@ -12,6 +12,7 @@
 #include <strict_enum/strict_enum.hpp>
 #include <ehl/ehl.hpp>
 #include "details/ct_ip.hpp"
+#include "details/hash_combine.hpp"
 
 namespace cpps
 {
@@ -112,9 +113,31 @@ public:
       return m_saddr_.sin6_port == addr.m_saddr_.sin6_port &&
              std::bit_cast<uint64_pair>(m_saddr_.sin6_addr) == std::bit_cast<uint64_pair>(addr.m_saddr_.sin6_addr);
   }
+
   constexpr bool operator!=(const Address& addr) const noexcept
   {
     return !this->operator==(addr);
+  }
+
+  constexpr std::size_t hash() const noexcept
+  {
+    if constexpr(AF == AddressFamily::IPv4)
+    {
+      const auto part1 = static_cast<std::uint64_t>(m_saddr_.sin_port) << 32;
+      const auto part2 = static_cast<std::uint64_t>(std::bit_cast<std::uint32_t>(m_saddr_.sin_addr));
+      return std::hash<std::uint64_t>{}(part1 | part2);
+    }
+
+    if constexpr(AF == AddressFamily::IPv6)
+    {
+      const auto[part1, part2] = std::bit_cast<uint64_pair>(m_saddr_.sin6_addr);
+      std::size_t seed = m_saddr_.sin6_port;
+
+      details::hash_combine(seed, part1);
+      details::hash_combine(seed, part2);
+
+      return seed;
+    }
   }
 };
 
@@ -122,3 +145,12 @@ using AddressIPv4 = Address<AddressFamily::IPv4>;
 using AddressIPv6 = Address<AddressFamily::IPv6>;
 
 } //namespace cpps
+
+template<cpps::AddressFamily AF>
+struct std::hash<cpps::Address<AF>>
+{
+  std::size_t operator()(const cpps::Address<AF>& s) const noexcept
+  {
+    return s.hash();
+  }
+};
