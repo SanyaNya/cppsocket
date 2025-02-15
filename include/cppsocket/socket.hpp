@@ -145,7 +145,9 @@ public:
   [[nodiscard]] ehl::Result_t<T, sys_errc::ErrorCode, EHP> recv() noexcept(EHP != ehl::Policy::Exception)
   {
     T t;
-    auto r = ::recv(m_handle_, reinterpret_cast<char*>(&t), sizeof(T), 0);
+    //ensure all data received for stream
+    constexpr int flags = SI.type == SocketType::Stream ? MSG_WAITALL : 0;
+    int r = ::recv(m_handle_, reinterpret_cast<char*>(&t), sizeof(T), flags);
 
     EHL_THROW_IF(r < sizeof(T), sys_errc::last_error());
 
