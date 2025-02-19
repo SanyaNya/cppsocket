@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.31)
 
-project(cppsocket)
+project(cppsocket VERSION 1.3.2)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
