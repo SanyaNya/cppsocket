@@ -1,8 +1,6 @@
 cmake_minimum_required(VERSION 3.31)
 
-project(cppsocket VERSION 1.3.2)
-
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+project(cppsocket VERSION 1.4.0)
 
 #Require C++23 without compiler extensions
 set(CMAKE_CXX_STANDARD 23)
@@ -11,12 +9,17 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(BUILD_EXAMPLES "Build examples" OFF)
 
-include(Fetch)
+file(
+  DOWNLOAD
+  https://github.com/cpm-cmake/CPM.cmake/releases/download/v0.40.5/CPM.cmake
+  ${CMAKE_CURRENT_BINARY_DIR}/cmake/CPM.cmake)
+include(${CMAKE_CURRENT_BINARY_DIR}/cmake/CPM.cmake)
 
-fetch_project(ehl https://github.com/SanyaNya/ehl v1.1.1)
-fetch_project(system_errc https://github.com/SanyaNya/system_errc v0.5.4)
-fetch_project(strict_enum https://github.com/SanyaNya/strict_enum v1.5.1)
-fetch_project(aggr_refl https://github.com/SanyaNya/aggr_refl v1.2.0)
+CPMAddPackage("gh:SanyaNya/hpp@1.6.1")
+CPMAddPackage("gh:SanyaNya/ehl@1.1.1")
+CPMAddPackage("gh:SanyaNya/system_errc@0.6.0")
+CPMAddPackage("gh:SanyaNya/strict_enum@1.7.0")
+CPMAddPackage("gh:SanyaNya/aggr_refl@1.2.1")
 
 add_library(cppsocket INTERFACE)
 target_link_libraries(cppsocket INTERFACE hpp ehl system_errc strict_enum aggr_refl)
