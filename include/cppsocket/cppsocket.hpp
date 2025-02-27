@@ -106,7 +106,7 @@ struct Net
     //getting pointer by reinterpret_cast is not UB,
     //accessing through this pointer is UB, but access is done by implementation of connect,
     //implementation know that pointer is from cast and deals with it
-    r = ::connect(sfd, reinterpret_cast<const sockaddr*>(&dest_addr), sizeo(dest_addr));
+    r = ::connect(sfd, reinterpret_cast<const sockaddr*>(&dest_addr), sizeof(dest_addr));
 
     EHL_THROW_IF(r != 0, sys_errc::last_error());
 
