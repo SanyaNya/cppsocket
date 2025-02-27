@@ -56,15 +56,15 @@ struct Net
   }
 #endif
 
-  template<SocketInfo SI, ConnectionSettings SCS = default_connection_settings, auto EHP = ehl::Policy::Exception>
-  [[nodiscard]] ehl::Result_t<Socket<SI, inv_none, SCS>, sys_errc::ErrorCode, EHP>
+  template<SocketInfo SI, auto EHP = ehl::Policy::Exception>
+  [[nodiscard]] ehl::Result_t<Socket<SI, inv_none, default_connection_settings>, sys_errc::ErrorCode, EHP>
   client_socket() const noexcept(EHP != ehl::Policy::Exception)
   {
     details::socket_resource sfd = ::socket((int)SI.address_family, (int)SI.type, (int)SI.protocol);
 
     EHL_THROW_IF(sfd.is_invalid(), sys_errc::last_error());
 
-    return Socket<SI, inv_none, SCS>(std::move(sfd));
+    return Socket<SI, inv_none, default_connection_settings>(std::move(sfd));
   }
 
   template<SocketInfo SI, ConnectionSettings SCS = default_connection_settings, auto EHP = ehl::Policy::Exception>
