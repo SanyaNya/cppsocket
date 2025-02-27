@@ -120,6 +120,15 @@ class Socket
     return t;
   }
 
+  template<typename T>
+  struct extra_byte
+  {
+    T obj;
+    std::byte byte;
+
+    constexpr operator T&() noexcept { return obj; }
+  };
+
 public:
   static constexpr SocketInfo socket_info = SI;
   static constexpr InvInfo inv_info = INV;
@@ -144,14 +153,19 @@ public:
   template<packet_type T, auto EHP = ehl::Policy::Exception> requires (INV.connected)
   [[nodiscard]] ehl::Result_t<T, sys_errc::ErrorCode, EHP> recv() noexcept(EHP != ehl::Policy::Exception)
   {
-    T t;
+    std::conditional_t<SI.type == SocketType::Datagram, extra_byte<T>, T> t;
+
     //ensure all data received for stream
     constexpr int flags = SI.type == SocketType::Stream ? MSG_WAITALL : 0;
-    int r = ::recv(m_handle_, reinterpret_cast<char*>(&t), sizeof(T), flags);
+    int r = ::recv(m_handle_, reinterpret_cast<char*>(&t), sizeof(t), flags);
 
-    EHL_THROW_IF(r < sizeof(T), sys_errc::last_error());
+    //return system error or not_connected to indicate connection issue or wrong_protocol_type to indicate wrong packet size
+    EHL_THROW_IF(
+      r != sizeof(T),
+      r < 0 ? sys_errc::last_error() :
+              (r == 0 ? sys_errc::common::sockets::not_connected : sys_errc::common::sockets::wrong_protocol_type));
 
-    return convert_byte_order<SCS>(t);
+    return convert_byte_order<SCS, T>(t);
   }
 
   template<packet_type T, auto EHP = ehl::Policy::Exception> requires (INV.connected)
@@ -161,7 +175,8 @@ public:
 
     auto r = ::send(m_handle_, reinterpret_cast<const char*>(&t_copy), sizeof(T), 0);
 
-    EHL_THROW_IF(r < sizeof(T), sys_errc::last_error());
+    //return system error or wrong_protocol_type to indicate interruption of send
+    EHL_THROW_IF(r != sizeof(T), r < 0 ? sys_errc::last_error() : sys_errc::common::sockets::wrong_protocol_type);
   }
 
   template<typename T>
@@ -176,18 +191,22 @@ public:
   [[nodiscard]] ehl::Result_t<recvfrom_result<T>, sys_errc::ErrorCode, EHP> recvfrom()
     noexcept(EHP != ehl::Policy::Exception)
   {
-    T t;
+    extra_byte<T> t;
     details::sockaddr_type<SI.address_family> addr;
     details::socklen_type addrlen = sizeof(addr);
     //getting pointer by reinterpret_cast is not UB,
     //accessing through this pointer is UB, but access is done by implementation of recvfrom,
     //implementation know that pointer is from cast and deals with it
     auto r = ::recvfrom(
-      m_handle_, reinterpret_cast<char*>(&t), sizeof(T), 0, reinterpret_cast<sockaddr*>(&addr), &addrlen);
+      m_handle_, reinterpret_cast<char*>(&t), sizeof(t), 0, reinterpret_cast<sockaddr*>(&addr), &addrlen);
 
-    EHL_THROW_IF(r < sizeof(T), sys_errc::last_error());
+    //return system error or not_connected to indicate connection issue or wrong_protocol_type to indicate wrong packet size
+    EHL_THROW_IF(
+      r != sizeof(T),
+      r < 0 ? sys_errc::last_error() :
+              (r == 0 ? sys_errc::common::sockets::not_connected : sys_errc::common::sockets::wrong_protocol_type));
 
-    return {convert_byte_order<CS>(t), std::bit_cast<cpps::Address<SI.address_family>>(addr)};
+    return {convert_byte_order<CS, T>(t), std::bit_cast<cpps::Address<SI.address_family>>(addr)};
   }
 
   template<packet_type T, ConnectionSettings CS = default_connection_settings, auto EHP = ehl::Policy::Exception>
@@ -204,7 +223,8 @@ public:
     auto r = ::sendto(
       m_handle_, reinterpret_cast<const char*>(&t_copy), sizeof(T), 0, reinterpret_cast<const sockaddr*>(&addr), addrlen);
 
-    EHL_THROW_IF(r < sizeof(T), sys_errc::last_error());
+    //return system error or wrong_protocol_type to indicate interruption of send
+    EHL_THROW_IF(r != sizeof(T), r < 0 ? sys_errc::last_error() : sys_errc::common::sockets::wrong_protocol_type);
   }
 
   template<PollFlags PF, auto EHP = ehl::Policy::Exception>
