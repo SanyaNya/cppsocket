@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.31)
 
-project(cppsocket VERSION 1.5.0)
+project(cppsocket VERSION 1.5.1)
 
 #Require C++23 without compiler extensions
 set(CMAKE_CXX_STANDARD 23)

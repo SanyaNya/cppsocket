@@ -206,7 +206,7 @@ public:
       r < 0 ? sys_errc::last_error() :
               (r == 0 ? sys_errc::common::sockets::not_connected : sys_errc::common::sockets::wrong_protocol_type));
 
-    return {convert_byte_order<CS, T>(t), std::bit_cast<cpps::Address<SI.address_family>>(addr)};
+    return recvfrom_result<T>{convert_byte_order<CS, T>(t), std::bit_cast<cpps::Address<SI.address_family>>(addr)};
   }
 
   template<packet_type T, ConnectionSettings CS = default_connection_settings, auto EHP = ehl::Policy::Exception>
