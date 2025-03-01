@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.31)
 
-project(cppsocket VERSION 1.5.1)
+project(cppsocket VERSION 1.5.2)
 
 #Require C++23 without compiler extensions
 set(CMAKE_CXX_STANDARD 23)
@@ -15,7 +15,7 @@ file(
   ${CMAKE_CURRENT_BINARY_DIR}/cmake/CPM.cmake)
 include(${CMAKE_CURRENT_BINARY_DIR}/cmake/CPM.cmake)
 
-CPMAddPackage("gh:SanyaNya/hpp@1.6.1")
+CPMAddPackage("gh:SanyaNya/hpp@1.7.0")
 CPMAddPackage("gh:SanyaNya/ehl@1.1.1")
 CPMAddPackage("gh:SanyaNya/system_errc@0.6.1")
 CPMAddPackage("gh:SanyaNya/strict_enum@1.7.0")
