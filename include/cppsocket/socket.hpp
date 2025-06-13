@@ -78,13 +78,6 @@ struct ConnectionSettings
 
 constexpr ConnectionSettings default_connection_settings = { .convert_byte_order = true };
 
-namespace details
-{
-
-using socklen_type = HPP_IFE(HPP_WIN_IMPL)(int)(socklen_t);
-
-} //namespace details
-
 template<SocketInfo SI, InvInfo INV, ConnectionSettings CS>
 class Socket;
 
@@ -140,14 +133,12 @@ public:
   {
     details::sockaddr_type<SI.address_family> addr;
     details::socklen_type addrlen = sizeof(addr);
-    //getting pointer by reinterpret_cast is not UB,
-    //accessing through this pointer is UB, but access is done by implementation of accept,
-    //implementation know that pointer is from cast and deals with it
-    details::socket_resource r = ::accept(m_handle_, reinterpret_cast<sockaddr*>(&addr), &addrlen);
+
+    details::socket_resource r = ::accept(m_handle_, details::to_sockaddr_ptr(&addr), &addrlen);
 
     EHL_THROW_IF(r.is_invalid(), sys_errc::last_error());
 
-    return IncomingConnection<SI, inv_connect, CS>(std::move(r), std::bit_cast<Address<SI.address_family>>(addr));
+    return IncomingConnection<SI, inv_connect, CS>(std::move(r), details::from_sockaddr(addr));
   }
 
   template<packet_type T, auto EHP = ehl::Policy::Exception> requires (INV.connected)
@@ -194,11 +185,9 @@ public:
     extra_byte<T> t;
     details::sockaddr_type<SI.address_family> addr;
     details::socklen_type addrlen = sizeof(addr);
-    //getting pointer by reinterpret_cast is not UB,
-    //accessing through this pointer is UB, but access is done by implementation of recvfrom,
-    //implementation know that pointer is from cast and deals with it
+
     auto r = ::recvfrom(
-      m_handle_, reinterpret_cast<char*>(&t), sizeof(t), 0, reinterpret_cast<sockaddr*>(&addr), &addrlen);
+      m_handle_, reinterpret_cast<char*>(&t), sizeof(t), 0, details::to_sockaddr_ptr(&addr), &addrlen);
 
     //return system error or not_connected to indicate connection issue or wrong_protocol_type to indicate wrong packet size
     EHL_THROW_IF(
@@ -206,7 +195,7 @@ public:
       r < 0 ? sys_errc::last_error() :
               (r == 0 ? sys_errc::common::sockets::not_connected : sys_errc::common::sockets::wrong_protocol_type));
 
-    return recvfrom_result<T>{convert_byte_order<CS, T>(t), std::bit_cast<cpps::Address<SI.address_family>>(addr)};
+    return recvfrom_result<T>{convert_byte_order<CS, T>(t), details::from_sockaddr(addr)};
   }
 
   template<packet_type T, ConnectionSettings CS = default_connection_settings, auto EHP = ehl::Policy::Exception>
@@ -217,11 +206,9 @@ public:
     T t_copy = convert_byte_order<CS>(t);
 
     details::socklen_type addrlen = sizeof(addr);
-    //getting pointer by reinterpret_cast is not UB,
-    //accessing through this pointer is UB, but access is done by implementation of recvfrom,
-    //implementation know that pointer is from cast and deals with it
+
     auto r = ::sendto(
-      m_handle_, reinterpret_cast<const char*>(&t_copy), sizeof(T), 0, reinterpret_cast<const sockaddr*>(&addr), addrlen);
+      m_handle_, reinterpret_cast<const char*>(&t_copy), sizeof(T), 0, details::to_sockaddr_ptr(&addr), addrlen);
 
     //return system error or wrong_protocol_type to indicate interruption of send
     EHL_THROW_IF(r != sizeof(T), r < 0 ? sys_errc::last_error() : sys_errc::common::sockets::wrong_protocol_type);

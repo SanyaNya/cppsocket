@@ -9,6 +9,7 @@
 #endif
 
 #include <bit>
+#include <type_traits>
 #include <strict_enum/strict_enum.hpp>
 #include <ehl/ehl.hpp>
 #include "details/ct_ip.hpp"
@@ -33,6 +34,8 @@ namespace details
 
 template<AddressFamily AF>
 using sockaddr_type = std::conditional_t<AF == AddressFamily::IPv4, sockaddr_in, sockaddr_in6>;
+
+using socklen_type = HPP_IFE(HPP_WIN_IMPL)(int)(socklen_t);
 
 } //namespace details
 
@@ -143,6 +146,33 @@ public:
 
 using AddressIPv4 = Address<AddressFamily::IPv4>;
 using AddressIPv6 = Address<AddressFamily::IPv6>;
+
+namespace details
+{
+
+template<typename T>
+  requires (
+    std::is_pointer_interconvertible_base_of_v<sockaddr_type<AddressFamily::IPv4>, T> ||
+    std::is_pointer_interconvertible_base_of_v<sockaddr_type<AddressFamily::IPv6>, T>)
+inline auto to_sockaddr_ptr(T* addr) noexcept
+{
+  //getting pointer by reinterpret_cast is not UB,
+  //accessing through this pointer is UB, but access is done by implementation of sockets functions,
+  //implementation know that pointer is from cast and deals with it
+  return reinterpret_cast<std::conditional_t<std::is_const_v<T>, const sockaddr*, sockaddr*>>(addr);
+}
+
+inline Address<AddressFamily::IPv4> from_sockaddr(const sockaddr_type<AddressFamily::IPv4>& s) noexcept
+{
+  return std::bit_cast<Address<AddressFamily::IPv4>>(s);
+}
+
+inline Address<AddressFamily::IPv6> from_sockaddr(const sockaddr_type<AddressFamily::IPv6>& s) noexcept
+{
+  return std::bit_cast<Address<AddressFamily::IPv6>>(s);
+}
+
+} //namespace details
 
 } //namespace cpps
 
