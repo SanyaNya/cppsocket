@@ -159,7 +159,7 @@ public:
     return convert_byte_order<SCS, T>(t);
   }
 
-  template<packet_type T, auto EHP = ehl::Policy::Exception> requires (INV.connected)
+  template<auto EHP = ehl::Policy::Exception, packet_type T> requires (INV.connected)
   [[nodiscard]] ehl::Result_t<void, sys_errc::ErrorCode, EHP> send(const T& t) noexcept(EHP != ehl::Policy::Exception)
   {
     T t_copy = convert_byte_order<SCS>(t);
@@ -198,7 +198,7 @@ public:
     return recvfrom_result<T>{convert_byte_order<CS, T>(t), details::from_sockaddr(addr)};
   }
 
-  template<packet_type T, ConnectionSettings CS = default_connection_settings, auto EHP = ehl::Policy::Exception>
+  template<ConnectionSettings CS = default_connection_settings, auto EHP = ehl::Policy::Exception, packet_type T>
     requires (SI.type == SocketType::Datagram)
   [[nodiscard]] ehl::Result_t<void, sys_errc::ErrorCode, EHP> sendto(const T& t, const Address<SI.address_family>& addr)
     noexcept(EHP != ehl::Policy::Exception)
