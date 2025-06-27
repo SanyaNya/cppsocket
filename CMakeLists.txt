@@ -15,10 +15,10 @@ file(
   ${CMAKE_CURRENT_BINARY_DIR}/cmake/CPM.cmake)
 include(${CMAKE_CURRENT_BINARY_DIR}/cmake/CPM.cmake)
 
-CPMAddPackage("gh:SanyaNya/hpp@1.7.0")
+CPMAddPackage("gh:SanyaNya/hpp@1.8.1")
 CPMAddPackage("gh:SanyaNya/ehl@1.1.1")
 CPMAddPackage("gh:SanyaNya/system_errc@0.6.1")
-CPMAddPackage("gh:SanyaNya/strict_enum@1.7.0")
+CPMAddPackage("gh:SanyaNya/strict_enum@1.9.0")
 CPMAddPackage("gh:SanyaNya/aggr_refl@1.2.1")
 
 add_library(cppsocket INTERFACE)
