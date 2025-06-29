@@ -5,6 +5,15 @@ struct Packet
 {
   cpps::uint32_t i[4];
 
+  constexpr bool is_valid() const noexcept
+  {
+    return
+      i[0].underlying_value() == 1 &&
+      i[1].underlying_value() == 2 &&
+      i[2].underlying_value() == 3 &&
+      i[3].underlying_value() == 4;
+  }
+
   friend std::ostream& operator<<(std::ostream& os, const Packet& p)
   {
     return os << "{" << p.i[0].underlying_value() << ", " << p.i[1].underlying_value() << ", " << p.i[2].underlying_value() << ", " << p.i[3].underlying_value() << "}";
@@ -22,9 +31,9 @@ int main() try
   auto [conn, conn_addr] = sock.accept<cpps::default_connection_settings, EHP>();
 
   Packet p = conn.recv<Packet, EHP>();
-  std::cout << "Received packet: " << p << std::endl;
+  std::cout << "Recv packet: " << p << std::endl;
 
-  conn.send<Packet, EHP>(p);
+  conn.send<EHP>(p);
   std::cout << "Send packet: " << p << std::endl;
 }
 catch(const sys_errc::ErrorCode& err)

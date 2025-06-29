@@ -22,7 +22,7 @@
 #include <strict_enum/strict_enum.hpp>
 #include "details/convert_byte_order.hpp"
 #include "details/socket_resource.hpp"
-#include "is_packet.hpp"
+#include "packet.hpp"
 #include "address.hpp"
 
 namespace cpps
@@ -122,6 +122,10 @@ class Socket
     constexpr operator T&() noexcept { return obj; }
   };
 
+  static constexpr sys_errc::ErrorCode not_connected_err       = sys_errc::common::sockets::not_connected;
+  static constexpr sys_errc::ErrorCode wrong_protocol_type_err = sys_errc::common::sockets::wrong_protocol_type;
+  static constexpr sys_errc::ErrorCode invalid_argument_err    = sys_errc::common::sockets::invalid_argument;
+
 public:
   static constexpr SocketInfo socket_info = SI;
   static constexpr InvInfo inv_info = INV;
@@ -138,11 +142,11 @@ public:
 
     EHL_THROW_IF(r.is_invalid(), sys_errc::last_error());
 
-    return IncomingConnection<SI, inv_connect, CS>(std::move(r), details::from_sockaddr(addr));
+    return {std::move(r), details::from_sockaddr(addr)};
   }
 
   template<packet_type T, auto EHP = ehl::Policy::Exception> requires (INV.connected)
-  [[nodiscard]] ehl::Result_t<T, sys_errc::ErrorCode, EHP> recv() noexcept(EHP != ehl::Policy::Exception)
+  [[nodiscard]] ehl::Result_t<valid_packet<T>, sys_errc::ErrorCode, EHP> recv() noexcept(EHP != ehl::Policy::Exception)
   {
     std::conditional_t<SI.type == SocketType::Datagram, extra_byte<T>, T> t;
 
@@ -154,26 +158,40 @@ public:
     EHL_THROW_IF(
       r != sizeof(T),
       r < 0 ? sys_errc::last_error() :
-              (r == 0 ? sys_errc::common::sockets::not_connected : sys_errc::common::sockets::wrong_protocol_type));
+              (r == 0 ? not_connected_err : wrong_protocol_type_err));
 
-    return convert_byte_order<SCS, T>(t);
+    T result = convert_byte_order<SCS, T>(t);
+
+    EHL_THROW_IF(!result.is_valid(), wrong_protocol_type_err);
+
+    return valid_packet<T>{result};
   }
 
   template<auto EHP = ehl::Policy::Exception, packet_type T> requires (INV.connected)
-  [[nodiscard]] ehl::Result_t<void, sys_errc::ErrorCode, EHP> send(const T& t) noexcept(EHP != ehl::Policy::Exception)
+  [[nodiscard]] ehl::Result_t<void, sys_errc::ErrorCode, EHP> send(const valid_packet<T>& t)
+    noexcept(EHP != ehl::Policy::Exception)
   {
-    T t_copy = convert_byte_order<SCS>(t);
+    T t_copy = convert_byte_order<SCS, T>(t);
 
     auto r = ::send(m_handle_, reinterpret_cast<const char*>(&t_copy), sizeof(T), 0);
 
     //return system error or wrong_protocol_type to indicate interruption of send
-    EHL_THROW_IF(r != sizeof(T), r < 0 ? sys_errc::last_error() : sys_errc::common::sockets::wrong_protocol_type);
+    EHL_THROW_IF(r != sizeof(T), r < 0 ? sys_errc::last_error() : wrong_protocol_type_err);
+  }
+
+  template<auto EHP = ehl::Policy::Exception, packet_type T> requires (INV.connected)
+  [[nodiscard]] ehl::Result_t<void, sys_errc::ErrorCode, EHP> send(const T& t)
+    noexcept(EHP != ehl::Policy::Exception)
+  {
+    EHL_THROW_IF(!t.is_valid(), invalid_argument_err);
+
+    return send<EHP, T>(valid_packet<T>{t});
   }
 
   template<typename T>
   struct recvfrom_result
   {
-    T value;
+    valid_packet<T> value;
     Address<SI.address_family> addr;
   };
 
@@ -193,17 +211,22 @@ public:
     EHL_THROW_IF(
       r != sizeof(T),
       r < 0 ? sys_errc::last_error() :
-              (r == 0 ? sys_errc::common::sockets::not_connected : sys_errc::common::sockets::wrong_protocol_type));
+              (r == 0 ? not_connected_err : wrong_protocol_type_err));
 
-    return recvfrom_result<T>{convert_byte_order<CS, T>(t), details::from_sockaddr(addr)};
+    T result = convert_byte_order<CS, T>(t);
+
+    EHL_THROW_IF(!result.is_valid(), invalid_argument_err);
+
+    return {valid_packet<T>{std::move(result)}, details::from_sockaddr(addr)};
   }
 
   template<ConnectionSettings CS = default_connection_settings, auto EHP = ehl::Policy::Exception, packet_type T>
     requires (SI.type == SocketType::Datagram)
-  [[nodiscard]] ehl::Result_t<void, sys_errc::ErrorCode, EHP> sendto(const T& t, const Address<SI.address_family>& addr)
-    noexcept(EHP != ehl::Policy::Exception)
+  [[nodiscard]] ehl::Result_t<void, sys_errc::ErrorCode, EHP> sendto(
+    const valid_packet<T>& t, const Address<SI.address_family>& addr)
+      noexcept(EHP != ehl::Policy::Exception)
   {
-    T t_copy = convert_byte_order<CS>(t);
+    T t_copy = convert_byte_order<CS, T>(t);
 
     details::socklen_type addrlen = sizeof(addr);
 
@@ -211,7 +234,17 @@ public:
       m_handle_, reinterpret_cast<const char*>(&t_copy), sizeof(T), 0, details::to_sockaddr_ptr(&addr), addrlen);
 
     //return system error or wrong_protocol_type to indicate interruption of send
-    EHL_THROW_IF(r != sizeof(T), r < 0 ? sys_errc::last_error() : sys_errc::common::sockets::wrong_protocol_type);
+    EHL_THROW_IF(r != sizeof(T), r < 0 ? sys_errc::last_error() : wrong_protocol_type_err);
+  }
+
+  template<ConnectionSettings CS = default_connection_settings, auto EHP = ehl::Policy::Exception, packet_type T>
+    requires (SI.type == SocketType::Datagram)
+  [[nodiscard]] ehl::Result_t<void, sys_errc::ErrorCode, EHP> sendto(const T& t, const Address<SI.address_family>& addr)
+      noexcept(EHP != ehl::Policy::Exception)
+  {
+    EHL_THROW_IF(!t.is_valid(), invalid_argument_err);
+
+    return sendto<CS, EHP, T>(valid_packet<T>{t}, addr);
   }
 
   template<PollFlags PF, auto EHP = ehl::Policy::Exception>
