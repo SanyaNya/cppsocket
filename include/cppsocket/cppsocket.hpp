@@ -75,10 +75,7 @@ struct Net
 
     EHL_THROW_IF(sfd.is_invalid(), sys_errc::last_error());
 
-    //getting pointer by reinterpret_cast is not UB,
-    //accessing through this pointer is UB, but access is done by implementation of connect,
-    //implementation know that pointer is from cast and deals with it
-    int r = ::connect(sfd, reinterpret_cast<const sockaddr*>(&dest_addr), sizeof(dest_addr));
+    int r = ::connect(sfd, details::to_sockaddr_ptr(&dest_addr), sizeof(dest_addr));
 
     EHL_THROW_IF(r != 0, sys_errc::last_error());
 
@@ -96,17 +93,11 @@ struct Net
 
     int r;
 
-    //getting pointer by reinterpret_cast is not UB,
-    //accessing through this pointer is UB, but access is done by implementation of bind,
-    //implementation know that pointer is from cast and deals with it
-    r = ::bind(sfd, reinterpret_cast<const sockaddr*>(&bind_addr), sizeof(bind_addr));
+    r = ::bind(sfd, details::to_sockaddr_ptr(&bind_addr), sizeof(bind_addr));
 
     EHL_THROW_IF(r != 0, sys_errc::last_error());
 
-    //getting pointer by reinterpret_cast is not UB,
-    //accessing through this pointer is UB, but access is done by implementation of connect,
-    //implementation know that pointer is from cast and deals with it
-    r = ::connect(sfd, reinterpret_cast<const sockaddr*>(&dest_addr), sizeof(dest_addr));
+    r = ::connect(sfd, details::to_sockaddr_ptr(&dest_addr), sizeof(dest_addr));
 
     EHL_THROW_IF(r != 0, sys_errc::last_error());
 
@@ -122,10 +113,7 @@ struct Net
 
     EHL_THROW_IF(sfd.is_invalid(), sys_errc::last_error());
 
-    //getting pointer by reinterpret_cast is not UB,
-    //accessing through this pointer is UB, but access is done by implementation of bind,
-    //implementation know that pointer is from cast and deals with it
-    int r = ::bind(sfd, reinterpret_cast<const sockaddr*>(&bind_addr), sizeof(bind_addr));
+    int r = ::bind(sfd, details::to_sockaddr_ptr(&bind_addr), sizeof(bind_addr));
 
     EHL_THROW_IF(r != 0, sys_errc::last_error());
 
@@ -143,10 +131,7 @@ struct Net
 
     int r;
 
-    //getting pointer by reinterpret_cast is not UB,
-    //accessing through this pointer is UB, but access is done by implementation of bind,
-    //implementation know that pointer is from cast and deals with it
-    r = ::bind(sfd, reinterpret_cast<const sockaddr*>(&bind_addr), sizeof(bind_addr));
+    r = ::bind(sfd, details::to_sockaddr_ptr(&bind_addr), sizeof(bind_addr));
 
     EHL_THROW_IF(r != 0, sys_errc::last_error());
 

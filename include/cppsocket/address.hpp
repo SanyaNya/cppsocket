@@ -153,7 +153,9 @@ namespace details
 template<typename T>
   requires (
     std::is_pointer_interconvertible_base_of_v<sockaddr_type<AddressFamily::IPv4>, T> ||
-    std::is_pointer_interconvertible_base_of_v<sockaddr_type<AddressFamily::IPv6>, T>)
+    std::is_pointer_interconvertible_base_of_v<sockaddr_type<AddressFamily::IPv6>, T> ||
+    std::is_same_v<Address<AddressFamily::IPv4>, std::remove_cv_t<T>>                 ||
+    std::is_same_v<Address<AddressFamily::IPv6>, std::remove_cv_t<T>>)
 inline auto to_sockaddr_ptr(T* addr) noexcept
 {
   //getting pointer by reinterpret_cast is not UB,
