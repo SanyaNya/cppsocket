@@ -3,7 +3,7 @@
 #include <bit>
 #include <cstddef>
 #include <aggr_refl/aggregate_reflection.hpp>
-#include "cppsocket/fixed_int.hpp"
+#include "cppsocket/fixed_t.hpp"
 #include "apply_index.hpp"
 
 namespace cpps::details
@@ -14,10 +14,10 @@ static_assert(
   "Mixed endian is not supported");
 
 template<typename T>
-constexpr void convert_byte_order(fixed_int<T>& t) noexcept
+constexpr void convert_byte_order(fixed_t<T>& t) noexcept
 {
   if constexpr(std::endian::native == std::endian::little)
-    t = fixed_int<T>{std::byteswap(t.underlying_value())};
+    t = fixed_t<T>{std::byteswap(t.underlying_value())};
 }
 
 template<typename T, std::size_t N>
