@@ -9,6 +9,10 @@
 namespace cpps::details
 {
 
+static_assert(
+  std::endian::native == std::endian::little || std::endian::native == std::endian::big,
+  "Mixed endian is not supported");
+
 template<typename T>
 constexpr void convert_byte_order(fixed_int<T>& t) noexcept
 {
