@@ -17,6 +17,9 @@
 #endif
 
 #include <utility>
+#include <algorithm>
+#include <array>
+#include <span>
 #include <ehl/ehl.hpp>
 #include <system_errc/system_errc.hpp>
 #include <strict_enum/strict_enum.hpp>
@@ -122,6 +125,28 @@ class Socket
     constexpr operator T&() noexcept { return obj; }
   };
 
+  template<typename V>
+  struct variant_storage;
+
+  template<typename... Ts>
+  struct variant_storage<std::variant<Ts...>>
+  {
+    alignas(Ts...) std::byte data[(std::max)(sizeof(Ts)...)];
+  };
+
+  template<typename T, std::size_t total_size>
+  struct extra_bytes
+  {
+    T obj;
+    std::byte bytes[total_size - sizeof(T)];
+  };
+
+  template<typename To, std::size_t N>
+  static constexpr To storage_bit_cast(std::byte (&storage)[N]) noexcept
+  {
+    return std::bit_cast<extra_bytes<To, N>>(storage).obj;
+  }
+
   static constexpr sys_errc::ErrorCode not_connected_err       = sys_errc::common::sockets::not_connected;
   static constexpr sys_errc::ErrorCode wrong_protocol_type_err = sys_errc::common::sockets::wrong_protocol_type;
   static constexpr sys_errc::ErrorCode invalid_argument_err    = sys_errc::common::sockets::invalid_argument;
@@ -167,6 +192,44 @@ public:
     return valid_packet<T>{result};
   }
 
+  template<packet_variant_type V, auto EHP = ehl::Policy::Exception>
+    requires (INV.connected && SI.type == SocketType::Datagram)
+  [[nodiscard]] HPP_ALWAYS_INLINE ehl::Result_t<valid_packet_variant<V>, sys_errc::ErrorCode, EHP> recv() noexcept(EHP != ehl::Policy::Exception)
+  {
+    extra_byte<variant_storage<V>> storage;
+
+    int size = ::recv(m_handle_, reinterpret_cast<char*>(&storage), sizeof(storage), 0);
+
+    EHL_THROW_IF(
+      !(size > 0 && size < sizeof(storage)),
+      size < 0 ? sys_errc::last_error() :
+              (size == 0 ? not_connected_err : wrong_protocol_type_err));
+
+    const auto validate = [&]<typename T>()
+    {
+      T t = convert_byte_order<SCS>(storage_bit_cast<T>(storage.obj.data));
+      return size == sizeof(T) && t.is_valid();
+    };
+
+    const auto v = [&validate]<std::size_t... Is>(std::index_sequence<Is...>)
+    {
+      return std::array{(validate.template operator()<std::variant_alternative_t<Is, V>>())...};
+    }(std::make_index_sequence<std::variant_size_v<V>>{});
+
+    EHL_THROW_IF(std::ranges::count(v, true) != 1, wrong_protocol_type_err);
+
+    return valid_packet_variant<V>{
+      [&]<std::size_t I = 0>(this const auto& self) -> V
+      {
+        using T = std::variant_alternative_t<I, V>;
+
+        if(v[I]) return convert_byte_order<SCS>(storage_bit_cast<T>(storage.obj.data));
+
+        if constexpr(I+1 != std::variant_size_v<V>)
+          return self.template operator()<I+1>();
+      }()};
+  }
+
   template<auto EHP = ehl::Policy::Exception, packet_type T> requires (INV.connected)
   [[nodiscard]] ehl::Result_t<void, sys_errc::ErrorCode, EHP> send(const valid_packet<T>& t)
     noexcept(EHP != ehl::Policy::Exception)
@@ -188,10 +251,43 @@ public:
     return send<EHP, T>(valid_packet<T>{t});
   }
 
+  template<auto EHP = ehl::Policy::Exception, packet_variant_type V> requires (INV.connected && SI.type == SocketType::Datagram)
+  [[nodiscard]] ehl::Result_t<void, sys_errc::ErrorCode, EHP> send(const valid_packet_variant<V>& v)
+    noexcept(EHP != ehl::Policy::Exception)
+  {
+    V v_copy = v;
+    const auto s = std::visit([&](auto& p)
+    {
+      p = convert_byte_order<SCS>(p);
+      return std::span<const char>{reinterpret_cast<const char*>(&p), sizeof(p)};
+    }, v_copy);
+
+    auto r = ::send(m_handle_, s.data(), s.size_bytes(), 0);
+
+    //return system error or wrong_protocol_type to indicate interruption of send
+    EHL_THROW_IF(r != s.size_bytes(), r < 0 ? sys_errc::last_error() : wrong_protocol_type_err);
+  }
+
+  template<auto EHP = ehl::Policy::Exception, packet_variant_type V> requires (INV.connected && SI.type == SocketType::Datagram)
+  [[nodiscard]] ehl::Result_t<void, sys_errc::ErrorCode, EHP> send(const V& v)
+    noexcept(EHP != ehl::Policy::Exception)
+  {
+    EHL_THROW_IF(!packet_variant_validate_predicate<V>(v), invalid_argument_err);
+
+    return send<EHP, V>(valid_packet_variant<V>{v});
+  }
+
   template<typename T>
   struct recvfrom_result
   {
     valid_packet<T> value;
+    Address<SI.address_family> addr;
+  };
+
+  template<typename... Ts>
+  struct recvfrom_result<std::variant<Ts...>>
+  {
+    valid_packet_variant<std::variant<Ts...>> value;
     Address<SI.address_family> addr;
   };
 
@@ -220,6 +316,49 @@ public:
     return {valid_packet<T>{std::move(result)}, details::from_sockaddr(addr)};
   }
 
+  template<packet_variant_type V, ConnectionSettings CS = default_connection_settings, auto EHP = ehl::Policy::Exception>
+    requires (SI.type == SocketType::Datagram)
+  [[nodiscard]] ehl::Result_t<recvfrom_result<V>, sys_errc::ErrorCode, EHP> recvfrom()
+    noexcept(EHP != ehl::Policy::Exception)
+  {
+    extra_byte<variant_storage<V>> storage;
+    details::sockaddr_type<SI.address_family> addr;
+    details::socklen_type addrlen = sizeof(addr);
+
+    int size = ::recvfrom(
+      m_handle_, reinterpret_cast<char*>(&storage), sizeof(storage), 0, details::to_sockaddr_ptr(&addr), &addrlen);
+
+    EHL_THROW_IF(
+      !(size > 0 && size < sizeof(storage)),
+      size < 0 ? sys_errc::last_error() :
+              (size == 0 ? not_connected_err : wrong_protocol_type_err));
+
+    const auto validate = [&]<typename T>()
+    {
+      T t = convert_byte_order<CS>(storage_bit_cast<T>(storage.obj.data));
+      return size == sizeof(T) && t.is_valid();
+    };
+
+    const auto v = [&validate]<std::size_t... Is>(std::index_sequence<Is...>)
+    {
+      return std::array{(validate.template operator()<std::variant_alternative_t<Is, V>>())...};
+    }(std::make_index_sequence<std::variant_size_v<V>>{});
+
+    EHL_THROW_IF(std::ranges::count(v, true) != 1, wrong_protocol_type_err);
+
+    V res = [&]<std::size_t I = 0>(this const auto& self) -> V
+    {
+      using T = std::variant_alternative_t<I, V>;
+
+      if(v[I]) return convert_byte_order<CS>(storage_bit_cast<T>(storage.obj.data));
+
+      if constexpr(I+1 != std::variant_size_v<V>)
+        return self.template operator()<I+1>();
+    }();
+
+    return {valid_packet_variant<V>{std::move(res)}, details::from_sockaddr(addr)};
+  }
+
   template<ConnectionSettings CS = default_connection_settings, auto EHP = ehl::Policy::Exception, packet_type T>
     requires (SI.type == SocketType::Datagram)
   [[nodiscard]] ehl::Result_t<void, sys_errc::ErrorCode, EHP> sendto(
@@ -245,6 +384,39 @@ public:
     EHL_THROW_IF(!t.is_valid(), invalid_argument_err);
 
     return sendto<CS, EHP, T>(valid_packet<T>{t}, addr);
+  }
+
+  template<ConnectionSettings CS = default_connection_settings, auto EHP = ehl::Policy::Exception, packet_variant_type V>
+    requires (SI.type == SocketType::Datagram)
+  [[nodiscard]] ehl::Result_t<void, sys_errc::ErrorCode, EHP> sendto(
+    const valid_packet_variant<V>& v, const Address<SI.address_family>& addr)
+      noexcept(EHP != ehl::Policy::Exception)
+  {
+    V v_copy = v;
+    const auto s = std::visit([&](auto& p)
+    {
+      p = convert_byte_order<CS>(p);
+      return std::span<const char>{reinterpret_cast<const char*>(&p), sizeof(p)};
+    }, v_copy);
+
+    details::socklen_type addrlen = sizeof(addr);
+
+    auto r = ::sendto(
+      m_handle_, s.data(), s.size_bytes(), 0, details::to_sockaddr_ptr(&addr), addrlen);
+
+    //return system error or wrong_protocol_type to indicate interruption of send
+    EHL_THROW_IF(r != s.size_bytes(), r < 0 ? sys_errc::last_error() : wrong_protocol_type_err);
+  }
+
+  template<ConnectionSettings CS = default_connection_settings, auto EHP = ehl::Policy::Exception, packet_variant_type V>
+    requires (SI.type == SocketType::Datagram)
+  [[nodiscard]] ehl::Result_t<void, sys_errc::ErrorCode, EHP> sendto(
+    const V& v, const Address<SI.address_family>& addr)
+      noexcept(EHP != ehl::Policy::Exception)
+  {
+    EHL_THROW_IF(!packet_variant_validate_predicate<V>(v), invalid_argument_err);
+
+    return sendto<CS, EHP, V>(valid_packet_variant<V>{v}, addr);
   }
 
   template<PollFlags PF, auto EHP = ehl::Policy::Exception>

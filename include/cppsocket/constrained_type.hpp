@@ -31,6 +31,13 @@ public:
 
     return m_t_;
   }
+
+  HPP_ALWAYS_INLINE constexpr const T& value() const noexcept
+  {
+    if(!P(m_t_)) std::unreachable();
+
+    return m_t_;
+  }
 };
 
 } //namespace cpps

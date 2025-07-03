@@ -7,16 +7,12 @@ struct Packet
 
   constexpr bool is_valid() const noexcept
   {
-    return
-      i[0].underlying_value() == 1 &&
-      i[1].underlying_value() == 2 &&
-      i[2].underlying_value() == 3 &&
-      i[3].underlying_value() == 4;
+    return i[0] == 1 && i[1] == 2 && i[2] == 3 && i[3] == 4;
   }
 
   friend std::ostream& operator<<(std::ostream& os, const Packet& p)
   {
-    return os << "{" << p.i[0].underlying_value() << ", " << p.i[1].underlying_value() << ", " << p.i[2].underlying_value() << ", " << p.i[3].underlying_value() << "}";
+    return os << "{" << p.i[0] << ", " << p.i[1] << ", " << p.i[2] << ", " << p.i[3] << "}";
   }
 };
 
