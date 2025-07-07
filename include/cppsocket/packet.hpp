@@ -35,10 +35,10 @@ constexpr bool is_packet_variant_v = is_packet_variant<T>::value;
 template<typename T>
 concept packet_variant_type = is_packet_variant_v<T>;
 
-template<typename T>
+template<packet_type T>
 constexpr auto packet_validate_predicate = [](const T& t) noexcept { return t.is_valid(); };
 
-template<typename V>
+template<packet_variant_type V>
 constexpr auto packet_variant_validate_predicate =
   [](const V& v){ return std::visit([](const auto& p) { return p.is_valid(); }, v); };
 

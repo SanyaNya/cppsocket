@@ -1,15 +1,8 @@
 // slightly modified https://github.com/gdelugre/literal_ipaddr
 
-#ifndef IPADDR_H_
-#define IPADDR_H_
+#pragma once
 
-#include <hpp/define.hpp>
-
-#if HPP_WIN_IMPL
-  #include <ws2tcpip.h>
-#elif HPP_POSIX_IMPL
-  #include <arpa/inet.h>
-#endif
+#include "platform_headers.hpp"
 
 #include <array>
 #include <cstdint>
@@ -383,6 +376,4 @@ consteval auto ct_inet_pton(const char (&str)[N])
     }
 }
 
-}
-
-#endif
+} //namespace cpps::details

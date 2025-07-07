@@ -1,20 +1,6 @@
 #pragma once
 
-#include <hpp/define.hpp>
-
-#if HPP_WIN_IMPL
-  #include <windows.h>
-  #include <winsock2.h>
-  #include <ws2tcpip.h>
-  #include <iphlpapi.h>
-#elif HPP_POSIX_IMPL
-  #include <sys/types.h>
-  #include <sys/socket.h>
-  #include <arpa/inet.h>
-  #include <netdb.h>
-  #include <unistd.h>
-  #include <poll.h>
-#endif
+#include "details/platform_headers.hpp"
 
 #include <utility>
 #include <algorithm>

@@ -1,12 +1,6 @@
 #pragma once
 
-#include <hpp/define.hpp>
-
-#if HPP_WIN_IMPL
-  #include <winsock2.h>
-#elif HPP_POSIX_IMPL
-  #include <sys/socket.h>
-#endif
+#include "details/platform_headers.hpp"
 
 #include <bit>
 #include <type_traits>
