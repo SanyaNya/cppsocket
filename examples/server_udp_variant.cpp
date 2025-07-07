@@ -19,11 +19,11 @@ struct Packet1
 
 struct Packet2
 {
-  cpps::uint32_t i;
+  cpps::ieee754_float32_t i;
 
   constexpr bool is_valid() const noexcept
   {
-    return i == 0;
+    return i == 1.25f;
   }
 
   friend std::ostream& operator<<(std::ostream& os, const Packet2& p)

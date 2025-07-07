@@ -18,11 +18,11 @@ struct Packet1
 
 struct Packet2
 {
-  cpps::uint32_t i;
+  cpps::ieee754_float32_t i;
 
   constexpr bool is_valid() const noexcept
   {
-    return i == 0;
+    return i == 1.25f;
   }
 
   friend std::ostream& operator<<(std::ostream& os, const Packet2& p)
@@ -42,7 +42,7 @@ int main() try
   auto sock = net.client_socket<cpps::SI_IPv4_UDP, CS, EHP>(addr);
 
   using V = std::variant<Packet1, Packet2>;
-  V v{std::rand() % 2 == 0 ? V{Packet1{1,2,3,4}} : V{Packet2{0}}};
+  V v{std::rand() % 2 == 0 ? V{Packet1{1,2,3,4}} : V{Packet2{1.25f}}};
   sock.send<EHP>(v);
   std::visit([](const auto& p) { std::cout << "Send packet: " << p << std::endl; }, v);
 

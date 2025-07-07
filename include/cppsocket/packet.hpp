@@ -5,6 +5,7 @@
 #include <ehl/ehl.hpp>
 #include <system_errc/system_errc.hpp>
 #include "details/convert_byte_order.hpp"
+#include "details/has_padding.hpp"
 #include "constrained_type.hpp"
 
 namespace cpps
@@ -13,7 +14,8 @@ namespace cpps
 template<typename T>
 concept packet_type =
   std::is_trivially_copyable_v<T>             &&
-  std::has_unique_object_representations_v<T> &&
+  std::is_aggregate_v<T>                      &&
+  !details::has_padding_v<T>                  &&
   requires(T& t)
   {
     details::convert_byte_order(t);

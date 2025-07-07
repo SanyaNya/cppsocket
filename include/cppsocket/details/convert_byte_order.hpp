@@ -13,11 +13,16 @@ static_assert(
   std::endian::native == std::endian::little || std::endian::native == std::endian::big,
   "Mixed endian is not supported");
 
+template<typename T> requires (sizeof(T) == 1) constexpr auto bit_cast_to_uint(T t) noexcept { return std::bit_cast<std::uint8_t>(t);  }
+template<typename T> requires (sizeof(T) == 2) constexpr auto bit_cast_to_uint(T t) noexcept { return std::bit_cast<std::uint16_t>(t); }
+template<typename T> requires (sizeof(T) == 4) constexpr auto bit_cast_to_uint(T t) noexcept { return std::bit_cast<std::uint32_t>(t); }
+template<typename T> requires (sizeof(T) == 8) constexpr auto bit_cast_to_uint(T t) noexcept { return std::bit_cast<std::uint64_t>(t); }
+
 template<typename T>
 constexpr void convert_byte_order(fixed_t<T>& t) noexcept
 {
   if constexpr(std::endian::native == std::endian::little)
-    t = fixed_t<T>{std::byteswap(t.underlying_value())};
+    t = std::bit_cast<fixed_t<T>>(std::byteswap(bit_cast_to_uint(t)));
 }
 
 template<typename T, std::size_t N>
