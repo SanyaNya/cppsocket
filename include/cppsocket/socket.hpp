@@ -167,7 +167,7 @@ public:
 
     EHL_THROW_IF(r.is_invalid(), sys_errc::last_error());
 
-    return {std::move(r), details::from_sockaddr(addr)};
+    return IncomingConnection<SI, inv_connect, CS>{std::move(r), details::from_sockaddr(addr)};
   }
 
   template<packet_type T, auto EHP = ehl::Policy::Exception> requires (INV.connected)
@@ -313,7 +313,7 @@ public:
 
     EHL_THROW_IF(!result.is_valid(), invalid_argument_err);
 
-    return {valid_packet<T>{std::move(result)}, details::from_sockaddr(addr)};
+    return recvfrom_result<T>{valid_packet<T>{std::move(result)}, details::from_sockaddr(addr)};
   }
 
   template<packet_variant_type V, ConnectionSettings CS = default_connection_settings, auto EHP = ehl::Policy::Exception>
@@ -356,7 +356,7 @@ public:
         return self.template operator()<I+1>();
     }();
 
-    return {valid_packet_variant<V>{std::move(res)}, details::from_sockaddr(addr)};
+    return recvfrom_result<V>{valid_packet_variant<V>{std::move(res)}, details::from_sockaddr(addr)};
   }
 
   template<ConnectionSettings CS = default_connection_settings, auto EHP = ehl::Policy::Exception, packet_type T>
