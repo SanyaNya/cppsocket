@@ -117,7 +117,7 @@ class Socket
   template<typename... Ts>
   struct variant_storage<std::variant<Ts...>>
   {
-    alignas(Ts...) std::byte data[(std::max)(sizeof(Ts)...)];
+    alignas(Ts...) std::byte data[(std::max)({sizeof(Ts)...})];
   };
 
   template<typename T, std::size_t total_size>
