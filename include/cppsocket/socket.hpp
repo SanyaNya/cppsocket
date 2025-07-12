@@ -180,7 +180,7 @@ public:
 
   template<packet_variant_type V, auto EHP = ehl::Policy::Exception>
     requires (INV.connected && SI.type == SocketType::Datagram)
-  [[nodiscard]] HPP_ALWAYS_INLINE ehl::Result_t<valid_packet_variant<V>, sys_errc::ErrorCode, EHP> recv() noexcept(EHP != ehl::Policy::Exception)
+  [[nodiscard]] ehl::Result_t<valid_packet_variant<V>, sys_errc::ErrorCode, EHP> recv() noexcept(EHP != ehl::Policy::Exception)
   {
     extra_byte<variant_storage<V>> storage;
 
@@ -202,7 +202,9 @@ public:
       return std::array{(validate.template operator()<std::variant_alternative_t<Is, V>>())...};
     }(std::make_index_sequence<std::variant_size_v<V>>{});
 
-    EHL_THROW_IF(std::ranges::count(v, true) != 1, wrong_protocol_type_err);
+    unsigned count = 0;
+    for(bool b : v) if(b) ++count;
+    EHL_THROW_IF(count != 1, wrong_protocol_type_err);
 
     return std::bit_cast<valid_packet_variant<V>>(
       [&]<std::size_t I = 0>(this const auto& self) -> V
@@ -330,7 +332,9 @@ public:
       return std::array{(validate.template operator()<std::variant_alternative_t<Is, V>>())...};
     }(std::make_index_sequence<std::variant_size_v<V>>{});
 
-    EHL_THROW_IF(std::ranges::count(v, true) != 1, wrong_protocol_type_err);
+    unsigned count = 0;
+    for(bool b : v) if(b) ++count;
+    EHL_THROW_IF(count != 1, wrong_protocol_type_err);
 
     V res = [&]<std::size_t I = 0>(this const auto& self) -> V
     {
