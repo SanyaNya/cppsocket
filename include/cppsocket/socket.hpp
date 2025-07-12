@@ -175,7 +175,7 @@ public:
 
     EHL_THROW_IF(!result.is_valid(), wrong_protocol_type_err);
 
-    return valid_packet<T>{result};
+    return std::bit_cast<valid_packet<T>>(result);
   }
 
   template<packet_variant_type V, auto EHP = ehl::Policy::Exception>
@@ -204,7 +204,7 @@ public:
 
     EHL_THROW_IF(std::ranges::count(v, true) != 1, wrong_protocol_type_err);
 
-    return valid_packet_variant<V>{
+    return std::bit_cast<valid_packet_variant<V>>(
       [&]<std::size_t I = 0>(this const auto& self) -> V
       {
         using T = std::variant_alternative_t<I, V>;
@@ -213,7 +213,7 @@ public:
 
         if constexpr(I+1 != std::variant_size_v<V>)
           return self.template operator()<I+1>();
-      }()};
+      }());
   }
 
   template<auto EHP = ehl::Policy::Exception, packet_type T> requires (INV.connected)
@@ -234,7 +234,7 @@ public:
   {
     EHL_THROW_IF(!t.is_valid(), invalid_argument_err);
 
-    return send<EHP, T>(valid_packet<T>{t});
+    return send<EHP, T>(std::bit_cast<valid_packet<T>>(t));
   }
 
   template<auto EHP = ehl::Policy::Exception, packet_variant_type V> requires (INV.connected && SI.type == SocketType::Datagram)
@@ -260,7 +260,7 @@ public:
   {
     EHL_THROW_IF(!packet_variant_validate_predicate<V>(v), invalid_argument_err);
 
-    return send<EHP, V>(valid_packet_variant<V>{v});
+    return send<EHP, V>(std::bit_cast<valid_packet_variant<V>>(v));
   }
 
   template<typename T>
@@ -299,7 +299,7 @@ public:
 
     EHL_THROW_IF(!result.is_valid(), invalid_argument_err);
 
-    return recvfrom_result<T>{valid_packet<T>{std::move(result)}, details::from_sockaddr(addr)};
+    return recvfrom_result<T>{std::bit_cast<valid_packet<T>>(result), details::from_sockaddr(addr)};
   }
 
   template<packet_variant_type V, ConnectionSettings CS = default_connection_settings, auto EHP = ehl::Policy::Exception>
@@ -342,7 +342,7 @@ public:
         return self.template operator()<I+1>();
     }();
 
-    return recvfrom_result<V>{valid_packet_variant<V>{std::move(res)}, details::from_sockaddr(addr)};
+    return recvfrom_result<V>{std::bit_cast<valid_packet_variant<V>>(res), details::from_sockaddr(addr)};
   }
 
   template<ConnectionSettings CS = default_connection_settings, auto EHP = ehl::Policy::Exception, packet_type T>
@@ -369,7 +369,7 @@ public:
   {
     EHL_THROW_IF(!t.is_valid(), invalid_argument_err);
 
-    return sendto<CS, EHP, T>(valid_packet<T>{t}, addr);
+    return sendto<CS, EHP, T>(std::bit_cast<valid_packet<T>>(t), addr);
   }
 
   template<ConnectionSettings CS = default_connection_settings, auto EHP = ehl::Policy::Exception, packet_variant_type V>
@@ -402,7 +402,7 @@ public:
   {
     EHL_THROW_IF(!packet_variant_validate_predicate<V>(v), invalid_argument_err);
 
-    return sendto<CS, EHP, V>(valid_packet_variant<V>{v}, addr);
+    return sendto<CS, EHP, V>(std::bit_cast<valid_packet_variant<V>>(v), addr);
   }
 
   template<PollFlags PF, auto EHP = ehl::Policy::Exception>
